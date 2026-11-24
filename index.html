@@ -4678,6 +4678,14 @@ function lessonShow() {
     ? `<p class="muted small">Слова недели: закрой правую колонку и вспомни перевод.</p>`
     : "";
   const words = `<div class="lwords">${L.words.map(({ it }) => `<details><summary>${sayBtn(it[0])}<b>${esc(it[0])}</b></summary><div><span>${esc(it[1])}</span><span class="muted small">${hl(it[2])}</span></div></details>`).join("")}</div>`;
+  const lw = store.get("lesson-wrong", {}), inQ = new Set(L.quiz.map(x => x.it[0]));
+  const due = Object.entries(lw).filter(([q, v]) => Date.now() - v.t > 16 * 3600e3 && !inQ.has(q)).sort((a, b) => a[1].t - b[1].t).slice(0, 4).map(([q, v]) => ({ box: v.box, it: v.it }));
+  const qmap = new Map(L.quiz.concat(due).map(x => [x.it[0], x]));
+  const rev = due.map(({ box, it: [q, opts, ok, why] }, i) => {
+    const order = seededShuffle(opts.map((o, j) => j), rng32(L.n * 41 + i));
+    return `<div class="card q" data-rv="1" data-ok="${ok}" data-box="${box}" data-q="${esc(q)}"><div class="q-text">${i + 1}. ${esc(q).replace("___", '<span class="gap">?</span>')}</div>
+      <div class="opts">${order.map(j => `<button type="button" id="lrv-${i}-${j}" data-j="${j}">${esc(opts[j])}</button>`).join("")}</div><div class="expl" hidden>${esc(why)}</div></div>`;
+  }).join("");
   const quiz = L.quiz.map(({ box, it: [q, opts, ok, why] }, i) => {
     const order = seededShuffle(opts.map((o, j) => j), rng32(L.n * 31 + i));
     return `<div class="card q" data-ok="${ok}" data-box="${box}" data-q="${esc(q)}"><div class="q-text">${i + 1}. ${esc(q).replace("___", '<span class="gap">?</span>')}</div>
@@ -4705,6 +4713,7 @@ function lessonShow() {
   const wkey = "lesson2-write-" + L.n;
   $("lesson-card").innerHTML = `<div class="tcard-head"><h2>Урок ${L.n} · неделя ${L.w}, ${LESSON_DAYS[L.d - 1].toLowerCase()}</h2><span class="lvl">${kindLbl}</span></div>
     <p class="muted small">≈ 25 минут: правило → слова → тест → перевод → ${L.read ? "чтение" : "говорение"} → письмо.</p>
+    ${due.length ? `<h2>🔁 Работа над ошибками</h2><p class="muted small">Эти вопросы раньше не получились. Ответишь верно — они уйдут из списка.</p><div class="quiz">${rev}</div>` : ""}
     <h2>1. Правило${L.topics.length > 1 ? "а недели" : " дня"}</h2>${rules}
     <h2>2. ${L.kind === "review" ? "Слова недели (повторение)" : "Новые слова"}</h2>${wordsHtml}${words}
     <h2>3. Тест</h2><div class="quiz">${quiz}</div><div class="score" id="lq-score"></div>
@@ -4719,10 +4728,11 @@ function lessonShow() {
   $("lesson-card").querySelectorAll(".card.q").forEach(qe => qe.querySelectorAll("button").forEach(b => b.onclick = () => {
     const ok = +qe.dataset.ok;
     qe.querySelectorAll("button").forEach(x => { x.disabled = true; if (+x.dataset.j === ok) x.classList.add("right"); });
-    if (+b.dataset.j !== ok) b.classList.add("wrong");
-    else { right++; const Q = QUIZZES[qe.dataset.box]; if (Q) { Q.seen.add(qe.dataset.q); store.set("quiz-" + qe.dataset.box, [...Q.seen]); } }
+    const good = +b.dataset.j === ok, isRv = !!qe.dataset.rv, item = qmap.get(qe.dataset.q);
+    if (!good) { b.classList.add("wrong"); if (item) { lw[qe.dataset.q] = { box: item.box, it: item.it, t: Date.now() }; store.set("lesson-wrong", lw); } }
+    else { if (!isRv) right++; else { delete lw[qe.dataset.q]; store.set("lesson-wrong", lw); } const Q = QUIZZES[qe.dataset.box]; if (Q) { Q.seen.add(qe.dataset.q); store.set("quiz-" + qe.dataset.box, [...Q.seen]); } }
     const g = qe.querySelector(".gap"); if (g) g.textContent = qe.querySelector(`button[data-j="${ok}"]`).textContent;
-    qe.querySelector(".expl").hidden = false; answered++;
+    qe.querySelector(".expl").hidden = false; if (isRv) return; answered++;
     $("lq-score").innerHTML = `<span>Правильно: ${right} из ${answered}${answered === L.quiz.length ? ` · ${right >= L.quiz.length - 1 ? "отлично! 🎉" : right >= L.quiz.length / 2 ? "хорошо, перечитай правило 👍" : "повтори правило и примеры ещё раз"}` : ""}</span>`;
   }));
   $("lesson-card").querySelectorAll(".lrq").forEach(qe => qe.querySelectorAll("button").forEach(b => b.onclick = () => {
