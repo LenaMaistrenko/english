@@ -343,6 +343,7 @@ svg.pic .dot { fill: var(--accent); }
 .fixres { display: grid; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--bg); border-left: 3px solid var(--accent); margin-top: 6px; }
 .fixres .fx-c { font-weight: 700; } .fixres ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .fixres s { color: var(--bad); } .fixres ins { color: var(--ok); text-decoration: none; font-weight: 700; }
+[hidden] { display: none !important; }
 </style>
 
 <nav class="nav" aria-label="Разделы">
@@ -368,7 +369,7 @@ svg.pic .dot { fill: var(--accent); }
 <!-- ============ ГЛАВНАЯ ============ -->
 <section class="view" data-view="home">
   <header class="head">
-    <div class="label">Для Лены · A2 → B1</div>
+    <div class="label">Для Лены · A1 → A2 → B1 → B2</div>
     <h1>Мой английский</h1>
     <div class="hello">
       <p>Лена, ты уже сделала самое трудное: занимаешься каждый день. Здесь всё собрано в одно место, чтобы не думать, <b>что</b> делать, — только открыть и сделать 15 минут.</p>
@@ -376,7 +377,7 @@ svg.pic .dot { fill: var(--accent); }
     </div>
   </header>
 
-  <div class="section" id="voice-box" hidden>
+  <div class="section" id="voice-box">
     <h2>Голос озвучки</h2>
     <div class="dir" role="group" aria-label="Голос" id="voice-pick">
       <button type="button" data-voice="airy">Голос 1</button>
@@ -389,7 +390,7 @@ svg.pic .dot { fill: var(--accent); }
       <button type="button" data-rate="0.9">обычно</button>
       <button type="button" data-rate="1">быстрее</button>
     </div>
-    <p class="muted small">Нажми на голос — услышишь пример. Выбор запоминается.</p>
+    <p class="muted small" id="voice-hint">Нажми на голос — услышишь пример. Выбор запоминается.</p>
   </div>
 
   <div class="section">
@@ -1176,7 +1177,7 @@ if (!canSpeak) document.documentElement.classList.add("no-speech");
 let TTS = null, TTS_OFF = false;
 function browserSpeak(t) {
   if (!canSpeak) return;
-  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t.replace(/…/g, "").replace(/[\[\]]/g, "")); u.lang = "en-US"; u.rate = .88; speechSynthesis.speak(u); } catch (e) {}
+  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t.replace(/…/g, "").replace(/[\[\]]/g, "")); u.lang = "en-US"; u.rate = store.get("tts-rate", .9); const nm = store.get("bv-name", ""); const vv = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); const v = vv.find(x => x.name === nm) || vv[0]; if (v) u.voice = v; speechSynthesis.speak(u); } catch (e) {}
 }
 function speak(t) {
   const text = String(t).replace(/…/g, "").replace(/[\[\]]/g, "").trim(); if (!text) return;
@@ -4850,6 +4851,20 @@ document.addEventListener("click", async e => {
   } finally { b.disabled = false; }
 });
 /* ---------- голос Claude (tts) и микрофон (dictation) ---------- */
+function browserVoices() { try { return speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); } catch (e) { return []; } }
+function voiceBrowserUI() {
+  if (TTS) return;
+  const vs = browserVoices(), pick = store.get("bv-name", "");
+  if (!vs.length) {
+    $("voice-pick").innerHTML = "";
+    $("voice-hint").innerHTML = "В этом браузере нет английского голоса, поэтому 🔊 молчит. <b>На ноутбуке</b> открывай версию на claude.ai — там говорит голос Claude. <b>На Android</b> в Chrome всё работает (голос Google; если молчит — Настройки → Синтез речи → Google, скачать английский).";
+    return;
+  }
+  $("voice-pick").innerHTML = vs.slice(0, 8).map((v, i) => `<button type="button" data-bvoice="${esc(v.name)}" aria-pressed="${v.name === pick || (!pick && i === 0)}">${esc(v.name.replace(/Google|Microsoft|English|\(.*?\)/g, "").trim() || "Голос " + (i + 1))} · ${esc(v.lang)}</button>`).join("");
+  $("voice-hint").textContent = "Голоса этого телефона/браузера. Нажми — услышишь пример.";
+}
+try { if (canSpeak) speechSynthesis.onvoiceschanged = () => voiceBrowserUI(); } catch (e) {}
+document.addEventListener("click", e => { const b = e.target.closest("[data-bvoice]"); if (b) { store.set("bv-name", b.dataset.bvoice); voiceBrowserUI(); speak("Hello, Lena! Let's practise English together."); } });
 function voiceUI() {
   const v = store.get("tts-voice", "airy"), r = store.get("tts-rate", .9);
   document.querySelectorAll("[data-voice]").forEach(b => b.setAttribute("aria-pressed", b.dataset.voice === v));
@@ -4909,10 +4924,10 @@ function wireDict(d) {
 fixRefresh(); if (typeof MutationObserver !== "undefined") new MutationObserver(() => fixRefresh()).observe(document.body, { childList: true, subtree: true });
 (async () => {
   try {
-    if (!window.claude || !window.claude.use) { const w = makeWebDict(); if (w) wireDict(w); return; }
+    if (!window.claude || !window.claude.use) { const w = makeWebDict(); if (w) wireDict(w); voiceBrowserUI(); setTimeout(voiceBrowserUI, 800); return; }
     const [t, d, smp] = await Promise.all([window.claude.use("tts"), window.claude.use("dictation"), window.claude.use("sample")]);
     if (smp) { SAMPLE = smp; fixRefresh(); }
-    if (t) { TTS = t; document.documentElement.classList.remove("no-speech"); $("voice-box").hidden = false; voiceUI(); }
+    if (t) { TTS = t; document.documentElement.classList.remove("no-speech"); voiceUI(); } else { voiceBrowserUI(); setTimeout(voiceBrowserUI, 800); }
     if (d) wireDict(d); else { const w = makeWebDict(); if (w) wireDict(w); }
   } catch (e) {}
 })();
