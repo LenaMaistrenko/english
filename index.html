@@ -1,3 +1,10 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
 <title>Мой английский</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -344,6 +351,9 @@ svg.pic .dot { fill: var(--accent); }
 .fixres .fx-c { font-weight: 700; } .fixres ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .fixres s { color: var(--bad); } .fixres ins { color: var(--ok); text-decoration: none; font-weight: 700; }
 [hidden] { display: none !important; }
+#lesson-card .exl > div { grid-template-columns: auto 1fr; column-gap: 10px; align-items: start; }
+#lesson-card .exl .say { grid-row: span 2; }
+#lesson-card .exl .en, #lesson-card .exl .tr { grid-column: 2; }
 </style>
 
 <nav class="nav" aria-label="Разделы">
@@ -4940,3 +4950,6 @@ renderProgress();
 if (current === "lessons") lessonsInit();
 if (current === "speak") spInit();
 </script>
+
+</body>
+</html>
