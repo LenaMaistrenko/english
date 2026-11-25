@@ -354,6 +354,9 @@ svg.pic .dot { fill: var(--accent); }
 #lesson-card .exl > div { grid-template-columns: auto 1fr; column-gap: 10px; align-items: start; }
 #lesson-card .exl .say { grid-row: span 2; }
 #lesson-card .exl .en, #lesson-card .exl .tr { grid-column: 2; }
+.rd-step { display: grid; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.rd-step .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.rd-words { line-height: 2; }
 </style>
 
 <nav class="nav" aria-label="Разделы">
@@ -4576,7 +4579,19 @@ function readShow() {
     <div class="quiz">${r.q.map(([q, opts], i) => {
       const order = shuffle(opts.map((o, j) => j));
       return `<div class="q" style="padding:0" data-qi="${i}"><div class="q-text">${i + 1}. ${esc(q)}</div><div class="opts">${order.map(j => `<button type="button" id="rq-${i}-${j}" data-j="${j}">${esc(opts[j])}</button>`).join("")}</div></div>`;
-    }).join("")}</div><div class="score" id="read-score"></div>`;
+    }).join("")}</div><div class="score" id="read-score"></div>
+    <div class="rd-step"><div class="label">🎤 Шаг 2. Прочитай текст вслух</div>
+      <p class="muted small" style="margin:0">Нажми 🎤 и читай текст целиком (можно по абзацам — нажимай 🎤 снова). Потом «Проверить чтение»: красным — слова, которые не распознались. Послушай их 🔊 и повтори.</p>
+      <label class="tr-label"><span>Что распознал микрофон <button type="button" class="mic" data-mic="rd-heard" hidden>🎤 читать</button></span><textarea id="rd-heard" rows="3" placeholder="Здесь появится то, что ты прочитала"></textarea></label>
+      <div class="row"><button type="button" class="btn" id="rd-check">Проверить чтение</button><button type="button" class="btn ghost" id="rd-clear">Заново</button></div>
+      <div id="rd-res" hidden></div></div>
+    <div class="rd-step"><div class="label">🗣 Шаг 3. Перескажи своими словами</div>
+      <p class="muted small" style="margin:0">Спрячь текст и расскажи, о чём он: 5–8 предложений. Claude проверит, что ты ничего важного не упустила, и исправит ошибки.</p>
+      <div class="row"><button type="button" class="btn ghost" id="rd-hide">🙈 Спрятать текст</button></div>
+      <label class="tr-label"><span>Мой пересказ <button type="button" class="mic" data-mic="rd-retell" hidden>🎤 говорить</button></span><textarea id="rd-retell" rows="5" placeholder="The text is about…"></textarea></label>
+      <div class="row"><button type="button" class="btn" id="rd-rcheck">Проверить пересказ</button></div>
+      <div id="rd-rres" class="fixres" hidden></div></div>`;
+  rdWire(r);
   $("read-card").querySelectorAll(".q").forEach(qe => qe.querySelectorAll("button").forEach(b => b.onclick = () => {
     const ok = r.q[+qe.dataset.qi][2];
     qe.querySelectorAll("button").forEach(x => { x.disabled = true; if (+x.dataset.j === ok) x.classList.add("right"); });
@@ -4588,6 +4603,56 @@ function readShow() {
       const n = $("read-next"); if (n) n.onclick = () => { readIdx++; store.set("read-idx", readIdx); readList(); readShow(); $("read-card").scrollIntoView({ block: "start" }); };
     }
   }));
+}
+function rdWire(r) {
+  // кнопки 🎤 покажет micRefresh, когда подключится микрофон
+  const res = $("rd-res");
+  const check = () => {
+    const heard = $("rd-heard").value.trim(); if (!heard) { res.hidden = true; return; }
+    const c = spCompare(r.text, heard), miss = [...new Set(c.words.filter((w, i) => !c.ok[i]))];
+    const st = store.get("rd-read", {}); st[r.t] = Math.max(st[r.t] || 0, c.score); store.set("rd-read", st);
+    res.hidden = false;
+    res.innerHTML = `<div class="sp-score" style="color:var(${c.score >= 80 ? "--ok" : "--bad"})">${c.score}% слов распознано · ${c.score >= 90 ? "Отлично! 🎉" : c.score >= 75 ? "Хорошо! Повтори красные слова 👍" : "Прочитай ещё раз медленнее и чётче"}</div>
+      <div class="rd-words">${c.words.map((w, i) => `<span class="sp-w ${c.ok[i] ? "ok" : "miss"}">${esc(w)}</span>`).join(" ")}</div>
+      ${miss.length ? `<div class="small"><b>Потренируй эти слова:</b> ${miss.slice(0, 15).map(w => `<span style="white-space:nowrap">${sayBtn(w)} ${esc(w)}</span>`).join(" &nbsp; ")}</div>` : ""}
+      <div class="muted small">Если ты пропустила кусок текста, он тоже будет красным — это не ошибка произношения.</div>`;
+  };
+  $("rd-check").onclick = check;
+  $("rd-clear").onclick = () => { $("rd-heard").value = ""; res.hidden = true; };
+  $("rd-hide").onclick = () => { const t = $("read-card").querySelector(".read-text"); t.hidden = !t.hidden; $("rd-hide").textContent = t.hidden ? "👀 Показать текст" : "🙈 Спрятать текст"; };
+  $("rd-rcheck").onclick = async () => {
+    const retell = $("rd-retell").value.trim(), box = $("rd-rres"); if (!retell) { $("rd-retell").focus(); return; }
+    box.hidden = false;
+    const base = `You are a friendly English teacher for Lena, a Russian-speaking adult learner (level ${r.l}). She read this text and then retold it in her own words (her retelling may come from speech recognition — ignore punctuation and capital letters).
+TEXT:
+"""${r.text}"""
+HER RETELLING:
+"""${retell}"""
+`;
+    if (!SAMPLE) {
+      const t = base + "Ответь по-русски: 1) насколько полно она пересказала (в %), 2) какие главные мысли она передала, 3) что важного пропустила, 4) ошибки: неправильно → правильно и почему, 5) улучшенный вариант её пересказа на английском (её уровень + чуть выше), 6) одна фраза поддержки.";
+      try { await navigator.clipboard.writeText(t); box.innerHTML = "📋 Скопировано! Вставь в ChatGPT, Gemini или другой чат-бот — он проверит пересказ и объяснит по-русски."; }
+      catch (e) { box.innerHTML = `Скопируй этот текст и вставь в чат-бот:<textarea rows="6" readonly>${esc(t)}</textarea>`; }
+      return;
+    }
+    box.textContent = "Claude проверяет пересказ…"; $("rd-rcheck").disabled = true;
+    try {
+      const j = await SAMPLE.json(base + `Reply ONLY with JSON: {"coverage": 0-100 how completely she conveyed the main ideas, "covered": ["main ideas she conveyed, IN RUSSIAN, short"], "missed": ["important ideas she missed, IN RUSSIAN, short"], "mistakes": [{"wrong": "exact fragment", "right": "fixed", "why": "1 short sentence IN RUSSIAN"}], "better": "an improved version of HER retelling in English, keeping her structure, at her level or slightly above, 5-8 sentences", "praise": "one short encouraging sentence IN RUSSIAN"}. At most 6 mistakes, most important first.`, { modelTier: "quick" });
+      const st = store.get("rd-retell", {}); st[r.t] = Math.max(st[r.t] || 0, +j.coverage || 0); store.set("rd-retell", st);
+      const L = (a, cls) => Array.isArray(a) && a.length ? `<ul class="${cls}">${a.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+      const m = Array.isArray(j.mistakes) ? j.mistakes : [];
+      box.innerHTML = `<div class="sp-score" style="color:var(${(+j.coverage || 0) >= 70 ? "--ok" : "--bad"})">Пересказано: ${+j.coverage || 0}%</div><div>${esc(j.praise || "")}</div>
+        ${j.covered && j.covered.length ? `<div><span class="muted small">✅ Ты передала:</span>${L(j.covered)}</div>` : ""}
+        ${j.missed && j.missed.length ? `<div><span class="muted small">➕ Можно добавить:</span>${L(j.missed)}</div>` : ""}
+        ${m.length ? `<div><span class="muted small">✏️ Ошибки:</span><ul>${m.map(x => `<li><s>${esc(x.wrong || "")}</s> → <ins>${esc(x.right || "")}</ins><br><span class="muted small">${esc(x.why || "")}</span></li>`).join("")}</ul></div>` : ""}
+        ${j.better ? `<div><span class="muted small">Как можно пересказать лучше:</span><div>${sayBtn(j.better)} ${esc(j.better)}</div></div>` : ""}`;
+    } catch (err) {
+      const c = err && err.code;
+      if (c === "not_granted") { SAMPLE = null; fixRefresh(); box.textContent = "Проверка выключена. Включить можно в меню страницы «Permissions»."; }
+      else if (c === "rate_limited") box.textContent = "Слишком много проверок подряд — попробуй через пару минут.";
+      else box.textContent = "Не получилось проверить. Попробуй ещё раз.";
+    } finally { $("rd-rcheck").disabled = false; }
+  };
 }
 readList(); readShow();
 
