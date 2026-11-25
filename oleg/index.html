@@ -132,9 +132,9 @@ details summary { cursor: pointer; font-weight: 800; }
 #mascot .kl-mute{pointer-events:auto;position:absolute;right:-4px;top:-8px;border:0;border-radius:50%;width:28px;height:28px;background:var(--card);box-shadow:0 1px 4px #0003;font-size:14px;cursor:pointer}
 #mascot{position:fixed}
 </style>
-</head>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("kids-theme")||"light"}catch(e){document.documentElement.dataset.theme="light"}</script></head>
 <body>
-<div class="top"><div class="top-in"><b>🦊 English · Олег</b><span class="stars" id="stars">⭐ 0</span></div></div>
+<div class="top"><div class="top-in"><b>🦊 English · Олег</b><span style="display:flex;gap:8px;align-items:center"><button type="button" id="theme-btn" title="Светлая / тёмная тема" style="border:0;background:none;font-size:1.2rem;cursor:pointer;padding:2px 4px">🌙</button><span class="stars" id="stars">⭐ 0</span></span></div></div>
 <main class="wrap">
   <div class="hero">
     <h1 id="hello"></h1>
@@ -917,5 +917,5 @@ if (typeof document !== "undefined" && DATA) {
   (async () => { try { if (window.claude && window.claude.use) { const [t, d, smp] = await Promise.all([window.claude.use("tts"), window.claude.use("dictation"), window.claude.use("sample")]); if (t) TTS = t; if (d) DICT = d; if (smp) SAMPLE = smp; if (t || d) show(); } } catch (e) {} })();
 }
 </script>
-</body>
+<script>(function(){const b=document.getElementById("theme-btn");if(!b)return;const set=t=>{document.documentElement.dataset.theme=t;b.textContent=t==="light"?"🌙":"☀️";try{localStorage.setItem("kids-theme",t)}catch(e){}};set(document.documentElement.dataset.theme||"light");b.onclick=()=>set(document.documentElement.dataset.theme==="light"?"dark":"light");})()</script></body>
 </html>
