@@ -234,7 +234,7 @@ if (typeof document !== "undefined" && DATA) {
     try { await navigator.clipboard.writeText(t); alert("Отчёт скопирован — вставь его в сообщение маме:\n\n" + t); } catch (e) { alert(t); }
   }
   /* --- скажи вслух (микрофон) --- */
-  let DICT = null;
+  let DICT = null, SAMPLE = null;
   function webRec() { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; return SR ? SR : null; }
   const norm = x => String(x).toLowerCase().replace(/[’']/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
   function sayScore(target, heard) {
@@ -375,7 +375,84 @@ if (typeof document !== "undefined" && DATA) {
     return `<div class="card stack"><div style="display:flex;gap:8px;align-items:center"><b>${esc(r.t)}</b><span class="small muted">${r.l}</span></div>
       <div><button type="button" class="btn ghost" data-say="${esc(r.text)}">🔊 Послушать текст</button></div><p class="read-text" style="margin:0">${html}</p>
       <div class="gloss">${r.g.map(([en, ru]) => `<div><b>${esc(en)}</b> — <span>${esc(ru)}</span></div>`).join("")}</div></div>
-      <div class="stack">${quizHtml(r.q.map(([q, o, ok]) => [q, o, ok, ""]), pre, L.n * 97)}</div>`;
+      <div class="stack">${quizHtml(r.q.map(([q, o, ok]) => [q, o, ok, ""]), pre, L.n * 97)}</div>
+      <div class="card stack" id="rd-aloud"><b>🎤 Прочитай текст вслух</b><span class="small muted">Нажми «Читать» и читай весь текст. Потом «Готово» — красные слова не распознались: послушай их 🔊 и повтори.</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-rdmic>🎤 Читать</button><button type="button" class="btn ghost" data-rdclr>Заново</button></div>
+        <div class="res" data-rdres hidden></div></div>
+      <div class="card stack" id="rd-retell"><b>🗣 Перескажи своими словами</b><span class="small muted">${C.mode === "kid" ? "Расскажи по-английски 3–5 предложений: кто? где? что случилось? Можно наговорить 🎤 или напечатать." : "Спрячь текст и перескажи 5–7 предложений. Проверка покажет, какие ключевые слова ты использовал."}</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ghost" data-rdhide>🙈 Спрятать текст</button><button type="button" class="btn ghost" data-rtmic>🎤 Говорить</button></div>
+        <textarea rows="4" data-rt placeholder="The story is about…"></textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-rtchk>Проверить пересказ</button></div>
+        <div class="res" data-rtres hidden></div></div>`;
+  }
+  /* --- микрофон в поле (для длинного чтения/пересказа) --- */
+  let LIVE = null;
+  function listenTo(btn, onText, onDone, label) {
+    if (LIVE) { LIVE.stop(); return; }
+    if (DICT) {
+      const off1 = DICT.onFinal(({ text }) => onText(text));
+      const off2 = DICT.onState(({ state }) => { if (state === "idle") { off1(); off2(); LIVE = null; btn.textContent = label; onDone(); } });
+      LIVE = { stop: () => DICT.stop().catch(() => {}) }; btn.textContent = "⏹ Готово";
+      DICT.start({ language: "en" }).catch(() => { off1(); off2(); LIVE = null; btn.textContent = label; alert("Микрофон не включился. Разреши его в настройках страницы."); });
+      return;
+    }
+    const SR = webRec(); if (!SR) { alert("Микрофон работает в Chrome. Здесь можно напечатать текст."); return; }
+    const r = new SR(); r.lang = "en-US"; r.continuous = true; r.interimResults = false; let err = "";
+    r.onresult = ev => { for (let i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) onText(" " + ev.results[i][0].transcript.trim()); };
+    r.onerror = ev => { err = ev.error; };
+    r.onend = () => { LIVE = null; btn.textContent = label; if (err === "network") alert("В этом браузере распознавание не работает — открой в Chrome на телефоне."); onDone(); };
+    LIVE = { stop: () => { try { r.stop(); } catch (e) {} } }; btn.textContent = "⏹ Готово";
+    try { r.start(); } catch (e) { LIVE = null; btn.textContent = label; }
+  }
+  function cmpWords(target, heard) {
+    const a = norm(target).split(" ").filter(Boolean), b = norm(heard).split(" ").filter(Boolean), n = a.length, m = b.length;
+    const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    const ok = new Array(n).fill(false); let i = 0, j = 0;
+    while (i < n && j < m) { if (a[i] === b[j]) { ok[i] = true; i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++; }
+    return { words: a, ok, score: n ? Math.round(100 * ok.filter(Boolean).length / n) : 0 };
+  }
+  function rdBind(r) {
+    const A = $("rd-aloud"), R = $("rd-retell"); if (!A || !R) return;
+    let heard = "";
+    const res = A.querySelector("[data-rdres]"), mic = A.querySelector("[data-rdmic]");
+    const show = () => {
+      if (!heard.trim()) { res.hidden = false; res.innerHTML = `<span class="muted">Ничего не услышал. Нажми «Читать» и читай громко и чётко.</span>`; return; }
+      const c = cmpWords(r.text, heard), miss = [...new Set(c.words.filter((w, i) => !c.ok[i]))];
+      res.hidden = false;
+      res.innerHTML = `<b style="color:var(${c.score >= 80 ? "--ok" : "--bad"})">${c.score}% слов распознано ${c.score >= 90 ? "— отлично! 🎉" : c.score >= 75 ? "— хорошо! 👍" : "— прочитай ещё раз медленнее"}</b>
+        <div style="line-height:2">${c.words.map((w, i) => `<span style="padding:1px 5px;border-radius:6px;font-weight:700;background:var(${c.ok[i] ? "--ok-soft" : "--bad-soft"});color:var(${c.ok[i] ? "--ok" : "--bad"})">${esc(w)}</span>`).join(" ")}</div>
+        ${miss.length ? `<div class="small"><b>Потренируй:</b> ${miss.slice(0, 12).map(w => `<span style="white-space:nowrap">${sayBtn(w)} ${esc(w)}</span>`).join(" ")}</div>` : ""}`;
+      if (c.score >= 80 && !A.dataset.got) { A.dataset.got = 1; addStar(3); }
+    };
+    mic.onclick = () => { if (!LIVE) { heard = ""; res.hidden = true; } listenTo(mic, t => { heard += t; }, show, "🎤 Читать"); };
+    A.querySelector("[data-rdclr]").onclick = () => { if (LIVE) LIVE.stop(); heard = ""; res.hidden = true; };
+    const ta = R.querySelector("[data-rt]"), rres = R.querySelector("[data-rtres]"), rmic = R.querySelector("[data-rtmic]");
+    R.querySelector("[data-rdhide]").onclick = e => { const t = document.querySelector("#g-read .read-text"); if (t) { t.hidden = !t.hidden; e.target.textContent = t.hidden ? "👀 Показать текст" : "🙈 Спрятать текст"; } };
+    rmic.onclick = () => listenTo(rmic, t => { ta.value = ta.value ? ta.value + t : t.trim(); }, () => {}, "🎤 Говорить");
+    R.querySelector("[data-rtchk]").onclick = async () => {
+      const txt = ta.value.trim(); if (!txt) { ta.focus(); return; }
+      rres.hidden = false;
+      const keys = [...new Set(r.g.map(g => g[0]).concat((r.text.match(/\b[A-Z][a-z]+\b/g) || []).filter(w => !/^(The|A|An|I|It|He|She|We|They|This|That|There|But|And|So|Then|When|After|Next|In|On|At|My|Our|His|Her|Yes|No|What|Who|How|Why)$/.test(w))))].slice(0, 12);
+      const have = norm(txt), got = keys.filter(k => norm(k).split(" ").every(w => have.includes(w.slice(0, Math.max(4, w.length - 2)))));
+      const nw = norm(txt).split(" ").filter(Boolean).length, pct = keys.length ? Math.round(100 * got.length / keys.length) : 0;
+      let html = `<b style="color:var(${pct >= 50 && nw >= (C.mode === "kid" ? 15 : 40) ? "--ok" : "--muted"})">Ключевые слова: ${got.length} из ${keys.length} · слов в пересказе: ${nw}</b>
+        <div class="small">${keys.map(k => `<span style="white-space:nowrap">${got.includes(k) ? "✅" : "▫️"} ${esc(k)}</span>`).join(" &nbsp; ")}</div>
+        <span class="small muted">${nw < (C.mode === "kid" ? 15 : 40) ? "Попробуй рассказать подробнее. " : ""}Не хватает слов? Посмотри в текст и попробуй ещё раз. Можно прочитать пересказ маме 😊</span>`;
+      if (pct >= 50 && nw >= (C.mode === "kid" ? 15 : 40) && !R.dataset.got) { R.dataset.got = 1; addStar(3); }
+      rres.innerHTML = html;
+      if (SAMPLE) {
+        const box = document.createElement("div"); box.className = "small"; box.textContent = "Claude проверяет…"; rres.appendChild(box);
+        try {
+          const j = await SAMPLE.json(`You are a kind English teacher for ${C.name}, a ${C.mode === "kid" ? "10-year-old (A2)" : "15-year-old (B2)"} Russian-speaking student. He read this text and retold it (may be from speech recognition — ignore punctuation/capitals).\nTEXT:\n"""${r.text}"""\nRETELLING:\n"""${txt}"""\nReply ONLY with JSON: {"coverage": 0-100, "missed": ["important ideas he missed, IN RUSSIAN, short"], "mistakes": [{"wrong": "...", "right": "...", "why": "IN RUSSIAN, very short, simple"}], "better": "improved version of HIS retelling, simple English at his level", "praise": "one short encouraging sentence IN RUSSIAN"}. At most 4 mistakes.`, { modelTier: "quick" });
+          const m = Array.isArray(j.mistakes) ? j.mistakes : [];
+          box.innerHTML = `<b>Claude: пересказано ${+j.coverage || 0}%</b> — ${esc(j.praise || "")}
+            ${j.missed && j.missed.length ? `<div>➕ Можно добавить: ${j.missed.map(esc).join("; ")}</div>` : ""}
+            ${m.length ? `<ul>${m.map(x => `<li><s>${esc(x.wrong || "")}</s> → <b>${esc(x.right || "")}</b> <span class="muted">${esc(x.why || "")}</span></li>`).join("")}</ul>` : ""}
+            ${j.better ? `<div>${sayBtn(j.better)} ${esc(j.better)}</div>` : ""}`;
+        } catch (e) { box.textContent = e && e.code === "not_granted" ? "" : "Claude сейчас не смог проверить — ничего страшного."; }
+      }
+    };
   }
   function clozeHtml(cz, L) {
     let txt = esc(cz.text); for (let k = 1; k <= 5; k++) txt = txt.replace(`(${k})___`, `<span class="gp" id="cz-${k}">(${k})</span>`);
@@ -383,6 +460,7 @@ if (typeof document !== "undefined" && DATA) {
       <div class="stack">${cz.gaps.map((opts, i) => { const order = sshuffle(opts.map((o, j) => j), rng32(L.n * 53 + i)); return `<div class="card q" data-ok="0" data-gap="${i + 1}"><div class="q-text">Пропуск ${i + 1}</div><div class="opts">${order.map(j => `<button type="button" data-j="${j}">${esc(opts[j])}</button>`).join("")}</div></div>`; }).join("")}</div>`;
   }
   function show() {
+    if (typeof LIVE !== "undefined" && LIVE) LIVE.stop();
     const L = buildLessons()[cur - 1]; if (!L) return;
     const tps = L.topics, s = [];
     let k = 0; const H = t => `<h2>${++k}. ${t}</h2>`;
@@ -410,6 +488,7 @@ if (typeof document !== "undefined" && DATA) {
     if (L.match && L.match.length) matchGame($("g-match"), L.match.map(w => C.mode === "kid" ? [w[0], w[1], w[2]] : [w[0], w[1]]), L.n * 13);
     bindQuiz($("lesson"));
     if (sayItems.length) sayGame($("g-say"), sayItems);
+    if (L.read) rdBind(L.read);
     if (L.build && L.build.length) buildGame($("g-build"), L.build, L.n * 19);
     if (L.tr && L.tr.length) trGame($("g-tr"), L.tr);
     if (L.cloze) $("g-cloze").querySelectorAll(".q").forEach(qe => qe.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
@@ -468,7 +547,7 @@ if (typeof document !== "undefined" && DATA) {
   if (!DATA.tname) $("tn-open").hidden = true;
   header(); show();
   $("report").onclick = sendReport;
-  (async () => { try { if (window.claude && window.claude.use) { const [t, d] = await Promise.all([window.claude.use("tts"), window.claude.use("dictation")]); if (t) TTS = t; if (d) DICT = d; if (t || d) show(); } } catch (e) {} })();
+  (async () => { try { if (window.claude && window.claude.use) { const [t, d, smp] = await Promise.all([window.claude.use("tts"), window.claude.use("dictation"), window.claude.use("sample")]); if (t) TTS = t; if (d) DICT = d; if (smp) SAMPLE = smp; if (t || d) show(); } } catch (e) {} })();
 }
 </script>
 </body>
