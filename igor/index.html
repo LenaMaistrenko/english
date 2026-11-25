@@ -456,27 +456,60 @@ if (typeof document !== "undefined" && DATA) {
   selTrInit(() => SAMPLE, DATA.topics.flatMap(t => (t.words || []).map(w => [w[0], w[1]])).concat((DATA.words || []).flatMap(x => (x.words || []).map(w => [w[0], w[1]])), DATA.reads.flatMap(r => r.g || []), (DATA.stories || []).flatMap(r => r.g || [])), C.mode === "kid" ? "a 10-year-old Russian-speaking boy (A2)" : "a 15-year-old Russian-speaking teen (B1-B2)");
   function webRec() { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; return SR ? SR : null; }
   const norm = x => String(x).toLowerCase().replace(/[’']/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
-  function sayScore(target, heard) {
-    const a = norm(target).split(" ").filter(Boolean), b = norm(heard).split(" ").filter(Boolean); if (!a.length) return 0;
+  /* --- распознавание речи: мягкое сравнение (дети жаловались, что «плохо распознаётся») --- */
+  const CONTR = { "i'm": "i am", "you're": "you are", "he's": "he is", "she's": "she is", "it's": "it is", "we're": "we are", "they're": "they are", "don't": "do not", "doesn't": "does not", "didn't": "did not", "can't": "can not", "cannot": "can not", "won't": "will not", "isn't": "is not", "aren't": "are not", "wasn't": "was not", "i'll": "i will", "i've": "i have", "let's": "let us", "that's": "that is", "what's": "what is", "there's": "there is", "o'clock": "oclock" };
+  const NOAP = { im: "i am", youre: "you are", hes: "he is", shes: "she is", its: "it is", were_: "", theyre: "they are", dont: "do not", doesnt: "does not", didnt: "did not", cant: "can not", wont: "will not", isnt: "is not", arent: "are not", wasnt: "was not", ive: "i have", lets: "let us", thats: "that is", whats: "what is", theres: "there is" };
+  const NUMS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+  const TENS = { 30: "thirty", 40: "forty", 50: "fifty", 60: "sixty", 70: "seventy", 80: "eighty", 90: "ninety", 100: "hundred" };
+  const HOMO = [["to", "two", "too"], ["for", "four"], ["right", "write"], ["their", "there", "theyre"], ["one", "won"], ["know", "no"], ["hear", "here"], ["see", "sea"], ["by", "buy", "bye"], ["eight", "ate"], ["son", "sun"], ["mum", "mom", "ma"], ["colour", "color"], ["favourite", "favorite"], ["grey", "gray"], ["ok", "okay"], ["hi", "hey"], ["igor", "eager", "egor"], ["oleg", "olek", "oh leg"], ["klusha", "clusha"], ["lusha", "lucia"]];
+  const HMAP = {}; HOMO.forEach(g => g.forEach(w => { HMAP[w] = g[0]; }));
+  function wnorm(x) {
+    let t = String(x).toLowerCase().replace(/[’`]/g, "'");
+    t = t.replace(/\b[a-z]+'[a-z]+\b/g, w => CONTR[w] || w.replace(/'/g, ""));
+    t = t.replace(/\b(\d{1,3})\b/g, d => { const n = +d; return n <= 20 ? NUMS[n] : TENS[n] || (n < 100 && TENS[n - n % 10] ? TENS[n - n % 10] + " " + NUMS[n % 10] : d); });
+    t = t.replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+    return t.split(" ").map(w => NOAP[w] || w).join(" ");
+  }
+  function lev(a, b) { const m = a.length, n = b.length; if (!m || !n) return m + n; let p = Array.from({ length: n + 1 }, (_, j) => j); for (let i = 1; i <= m; i++) { const c = [i]; for (let j = 1; j <= n; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[n]; }
+  function wEq(a, b) {
+    if (a === b) return true;
+    if ((HMAP[a] || a) === (HMAP[b] || b)) return true;
+    const L = Math.max(a.length, b.length), d = lev(a, b);
+    return L >= 7 ? d <= 2 : L >= 4 ? d <= 1 : false;
+  }
+  function lcsMatch(a, b) {
     const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
-    for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    return Math.round(100 * dp[0][0] / a.length);
+    for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) dp[i][j] = wEq(a[i], b[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    const ok = new Array(a.length).fill(false); let i = 0, j = 0;
+    while (i < a.length && j < b.length) { if (wEq(a[i], b[j])) { ok[i] = true; i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++; }
+    return ok;
+  }
+  function sayScore(target, heard) {
+    const a = wnorm(target).split(" ").filter(Boolean), b = wnorm(heard).split(" ").filter(Boolean); if (!a.length) return 0;
+    const ok = lcsMatch(a, b); return Math.round(100 * ok.filter(Boolean).length / a.length);
+  }
+  function sayMarks(target, heard) {
+    const a = wnorm(target).split(" ").filter(Boolean), ok = lcsMatch(a, wnorm(heard).split(" ").filter(Boolean));
+    return a.map((w, i) => `<span style="padding:1px 5px;border-radius:6px;font-weight:700;background:var(${ok[i] ? "--ok-soft" : "--bad-soft"});color:var(${ok[i] ? "--ok" : "--bad"})">${esc(w)}</span>`).join(" ");
   }
   function sayGame(box, items) {
     const can = DICT || webRec();
-    box.innerHTML = can ? items.map((t, i) => `<div class="card stack" data-s="${i}"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:1.1rem">${esc(t)}</b>${sayBtn(t)}</div>
+    box.innerHTML = can ? `<p class="small muted" style="margin:0">💡 Говори чуть медленнее и чётко, телефон держи близко, лучше в тишине. Почти правильно — тоже засчитывается.</p>` + items.map((t, i) => `<div class="card stack" data-s="${i}"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:1.1rem">${esc(t)}</b>${sayBtn(t)}</div>
       <div><button type="button" class="btn" data-mic>🎤 Скажи</button></div><div class="res" hidden></div></div>`).join("")
       : `<p class="muted small">Микрофон работает в браузере Chrome. Здесь просто прочитай вслух 3 раза: ${items.map(esc).join(" · ")}</p>`;
     if (!can) return;
     let active = null;
     box.querySelectorAll("[data-s]").forEach(c => {
-      const t = items[+c.dataset.s], btn = c.querySelector("[data-mic]"), res = c.querySelector(".res");
+      const t = items[+c.dataset.s], btn = c.querySelector("[data-mic]"), res = c.querySelector(".res"), long = wnorm(t).split(" ").length > 2;
+      let tries = 0;
       const finish = heard => {
-        btn.textContent = "🎤 Скажи ещё раз"; active = null; res.hidden = false;
-        if (!heard) { res.innerHTML = `<span class="muted">Не расслышал. Нажми и скажи чуть громче.</span>`; return; }
-        const sc = sayScore(t, heard);
-        res.innerHTML = sc >= 80 ? `<b style="color:var(--ok)">✓ Отлично! Я услышал: «${esc(heard)}»</b>` : `<b style="color:var(--bad)">Я услышал: «${esc(heard)}»</b><span class="small muted">Послушай 🔊 и попробуй ещё раз.</span>`;
-        if (sc >= 80 && !c.dataset.got) { c.dataset.got = 1; addStar(2); }
+        btn.textContent = "🎤 Скажи ещё раз"; active = null; res.hidden = false; tries++;
+        if (!heard) { res.innerHTML = `<span class="muted">Не расслышал 🙉 Нажми и скажи чуть громче, телефон поближе.</span>`; return; }
+        const sc = sayScore(t, heard), pass = sc >= (long ? 70 : 80);
+        if (pass) { res.innerHTML = `<b style="color:var(--ok)">✓ Отлично! Я услышал: «${esc(heard)}»</b>`; if (!c.dataset.got) { c.dataset.got = 1; lastEl = btn; comboHit(true); addStar(2); } return; }
+        if (tries >= 3 && !c.dataset.got) { c.dataset.got = 1; res.innerHTML = `<b style="color:var(--ok)">👍 Засчитано за старание!</b><div class="small">Я услышал: «${esc(heard)}». Послушай ещё раз ${sayBtn(t)} — у тебя всё получится.</div>`; lastEl = btn; addStar(1); return; }
+        res.innerHTML = `<b style="color:var(--bad)">Почти! Я услышал: «${esc(heard)}»</b><div style="line-height:2">${sayMarks(t, heard)}</div><span class="small muted">Красные слова не расслышал. Послушай ${sayBtn(t)} и скажи ещё раз — медленнее. ${tries === 2 ? "Ещё одна попытка — и засчитаю за старание 😉" : ""}</span>`;
+        comboHit(false); cheer("bad");
       };
       btn.onclick = () => {
         if (DICT) {
@@ -487,12 +520,20 @@ if (typeof document !== "undefined" && DATA) {
           DICT.start({ language: "en" }).catch(() => { off1(); off2(); btn.textContent = "🎤 Скажи"; active = null; res.hidden = false; res.textContent = "Микрофон не включился. Разреши его в настройках страницы."; });
           return;
         }
-        const SR = webRec(); const r = new SR(); r.lang = "en-US"; r.interimResults = false; r.maxAlternatives = 3;
-        let heard = "", err = ""; btn.textContent = "👂 Слушаю…";
-        r.onresult = ev => { const alts = [...ev.results[0]].map(a => a.transcript); heard = alts.sort((x, y) => sayScore(t, y) - sayScore(t, x))[0] || ""; };
+        if (active === c && c._rec) { try { c._rec.stop(); } catch (e) {} return; }
+        const SR = webRec(); const r = new SR(); c._rec = r; active = c;
+        r.lang = store.get("asr-lang", "en-US"); r.interimResults = false; r.maxAlternatives = 5; r.continuous = long;
+        const parts = []; let err = ""; btn.textContent = long ? "⏹ Готово" : "👂 Слушаю…";
+        r.onresult = ev => { for (let k = ev.resultIndex; k < ev.results.length; k++) if (ev.results[k].isFinal) { const alts = [...ev.results[k]].map(x => x.transcript); parts.push(alts); } };
         r.onerror = ev => { err = ev.error; };
-        r.onend = () => { if (err === "network" || err === "not-allowed" || err === "service-not-allowed") { btn.textContent = "🎤 Скажи"; res.hidden = false; res.textContent = err === "network" ? "В этом браузере распознавание не работает — открой в Chrome на телефоне." : "Разреши микрофон для этой страницы."; return; } finish(heard); };
-        try { r.start(); } catch (e) { btn.textContent = "🎤 Скажи"; }
+        r.onend = () => {
+          c._rec = null;
+          if (err === "network" || err === "not-allowed" || err === "service-not-allowed") { btn.textContent = "🎤 Скажи"; active = null; res.hidden = false; res.textContent = err === "network" ? "В этом браузере распознавание не работает — открой в Chrome на телефоне." : "Разреши микрофон для этой страницы (значок замка в адресной строке)."; return; }
+          // лучшая комбинация: для каждого куска берём вариант, который больше всего похож на нужную фразу
+          let heard = ""; parts.forEach(alts => { const best = alts.slice().sort((x, y) => sayScore(t, (heard + " " + y).trim()) - sayScore(t, (heard + " " + x).trim()))[0]; heard = (heard + " " + best).trim(); });
+          finish(heard);
+        };
+        try { r.start(); } catch (e) { btn.textContent = "🎤 Скажи"; active = null; }
       };
     });
   }
@@ -642,12 +683,8 @@ if (typeof document !== "undefined" && DATA) {
     try { r.start(); } catch (e) { LIVE = null; btn.textContent = label; }
   }
   function cmpWords(target, heard) {
-    const a = norm(target).split(" ").filter(Boolean), b = norm(heard).split(" ").filter(Boolean), n = a.length, m = b.length;
-    const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
-    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    const ok = new Array(n).fill(false); let i = 0, j = 0;
-    while (i < n && j < m) { if (a[i] === b[j]) { ok[i] = true; i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++; }
-    return { words: a, ok, score: n ? Math.round(100 * ok.filter(Boolean).length / n) : 0 };
+    const a = wnorm(target).split(" ").filter(Boolean), ok = lcsMatch(a, wnorm(heard).split(" ").filter(Boolean));
+    return { words: a, ok, score: a.length ? Math.round(100 * ok.filter(Boolean).length / a.length) : 0 };
   }
   function rdBind(r) {
     const A = $("rd-aloud"), R = $("rd-retell"); if (!A || !R) return;
