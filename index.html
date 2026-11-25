@@ -6,6 +6,7 @@
 </head>
 <body>
 <title>Мой английский</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("lena-theme")||"light"}catch(e){document.documentElement.dataset.theme="light"}</script>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&family=Unbounded:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -367,6 +368,7 @@ svg.pic .dot { fill: var(--accent); }
 .rd-words { line-height: 2; }
 </style>
 
+<button type="button" id="theme-btn" title="Светлая / тёмная тема" style="position:fixed;left:12px;bottom:12px;z-index:60;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--card);box-shadow:0 2px 8px #0002;font-size:1.2rem;cursor:pointer">🌙</button>
 <nav class="nav" aria-label="Разделы">
   <div class="nav-inner" id="nav">
     <a href="#home">Главная</a>
@@ -416,8 +418,8 @@ svg.pic .dot { fill: var(--accent); }
       <a class="tile" href="#speak"><b>Произношение</b><span>Скажи фразу в микрофон — приложение покажет, какие слова звучат понятно</span></a>
       <a class="tile" href="#lessons"><b>Уроки на каждый день</b><span>300 уроков по 20–30 минут: начало полегче, потом до B2 и C1</span></a>
       <a class="tile" href="#translate"><b>Перевод</b><span>С русского на английский: 90 фраз на каждый день + A2, B1, B2 — 302 предложения</span></a>
-      <a class="tile" href="#phrases"><b>Слова и фразы</b><span>Карточки: словарь по 16 темам, 124 фразовых глагола и 135 идиом с теорией и тестами, фразы для работы и жизни</span></a>
-      <a class="tile" href="#reading"><b>Чтение</b><span>48 коротких текстов A2–B2 со словарём и вопросами</span></a>
+      <a class="tile" href="#phrases"><b>Слова и фразы</b><span>Карточки: словарь по <span data-cnt="wsets">16</span> темам, <span data-cnt="phrasal">124</span> фразовых глагола и <span data-cnt="idioms">135</span> идиом с теорией и тестами, фразы для работы и жизни</span></a>
+      <a class="tile" href="#reading"><b>Чтение</b><span><span data-cnt="read">48</span> текстов от A2 до C1 со словарём и вопросами</span></a>
       <a class="tile" href="#tenses"><b>Времена</b><span>Линии времени, формулы, частые ошибки, тест</span></a>
       <a class="tile" href="#verbs"><b>Неправильные глаголы</b><span>75 глаголов по группам, тренажёр с проверкой</span></a>
       <a class="tile" href="#b2"><b>Грамматика B2</b><span>Пассив, косвенная речь, -ing или to, used to</span></a>
@@ -5842,6 +5844,13 @@ function wireDict(d) {
   };
   show();
 })();
+
+/* ---------- светлая / тёмная тема (Олена 2026-11-25: «очень тёмное») ---------- */
+(() => { const b = $("theme-btn"); if (!b) return; const set = t => { document.documentElement.dataset.theme = t; b.textContent = t === "light" ? "🌙" : "☀️"; try { localStorage.setItem("lena-theme", t); } catch (e) {} }; set(document.documentElement.dataset.theme || "light"); b.onclick = () => set(document.documentElement.dataset.theme === "light" ? "dark" : "light"); })();
+
+/* ---------- живые счётчики на главной ---------- */
+(() => { const n = { wsets: SETS.filter(x => x.cat === "words").length, phrasal: SETS.filter(x => x.cat === "phrasal").reduce((a, x) => a + x.items.length, 0), idioms: SETS.filter(x => x.cat === "idioms").reduce((a, x) => a + x.items.length, 0), read: READ.length };
+  document.querySelectorAll("[data-cnt]").forEach(e => { if (n[e.dataset.cnt] != null) e.textContent = n[e.dataset.cnt]; }); })();
 fixRefresh(); if (typeof MutationObserver !== "undefined") new MutationObserver(() => fixRefresh()).observe(document.body, { childList: true, subtree: true });
 (async () => {
   try {
