@@ -220,6 +220,53 @@ function buildLessons() {
 }
 if (typeof module !== "undefined") module.exports = { buildLessons, rng32, sshuffle, setData: d => { globalThis.DATA_ = d; } };
 
+/* ---------- перевод выделенного слова ---------- */
+function selTrInit(getSample, entries, who) {
+  const kn = x => String(x).toLowerCase().replace(/[’']/g, "'").replace(/\([^)]*\)/g, " ").replace(/[^a-z' -]+/g, " ").replace(/\s+/g, " ").trim();
+  const W = new Map(); entries.forEach(([en, ru]) => { if (!en || !ru) return; String(en).split(/\s*\/\s*/).forEach(e => { const k = kn(e); if (k && !W.has(k)) W.set(k, ru); }); });
+  const IRR = { went: "go", gone: "go", was: "be", were: "be", been: "be", is: "be", are: "be", am: "be", had: "have", has: "have", did: "do", does: "do", done: "do", made: "make", saw: "see", seen: "see", took: "take", taken: "take", got: "get", gotten: "get", came: "come", gave: "give", given: "give", ate: "eat", eaten: "eat", ran: "run", wrote: "write", written: "write", told: "tell", said: "say", thought: "think", bought: "buy", brought: "bring", caught: "catch", taught: "teach", felt: "feel", found: "find", left: "leave", lost: "lose", met: "meet", paid: "pay", sold: "sell", sent: "send", spent: "spend", stood: "stand", understood: "understand", won: "win", knew: "know", known: "know", flew: "fly", flown: "fly", grew: "grow", drew: "draw", drove: "drive", rode: "ride", broke: "break", broken: "break", chose: "choose", spoke: "speak", woke: "wake", wore: "wear", began: "begin", swam: "swim", sang: "sing", drank: "drink", slept: "sleep", kept: "keep", built: "build", held: "hold", heard: "hear", sat: "sit", fell: "fall", forgot: "forget", hid: "hide", children: "child", men: "man", women: "woman", feet: "foot", teeth: "tooth", mice: "mouse", better: "good", best: "good", worse: "bad", worst: "bad" };
+  const forms = k => [k, IRR[k], k.replace(/ies$/, "y"), k.replace(/ied$/, "y"), k.replace(/es$/, ""), k.replace(/s$/, ""), k.replace(/ed$/, ""), k.replace(/d$/, ""), k.replace(/(.)\1ed$/, "$1"), k.replace(/ing$/, ""), k.replace(/ing$/, "e"), k.replace(/(.)\1ing$/, "$1"), k.replace(/ier$/, "y"), k.replace(/iest$/, "y"), k.replace(/er$/, ""), k.replace(/est$/, ""), k.replace(/ily$/, "y"), k.replace(/ly$/, ""), k.replace(/'s$/, "")].filter(Boolean);
+  const look = t => { const k = kn(t); for (const f of forms(k)) if (W.has(f)) return [f, W.get(f)]; const ks = k.split(" "); if (ks.length > 1) { for (const f of forms(ks[ks.length - 1])) { const p = ks.slice(0, -1).concat(f).join(" "); if (W.has(p)) return [p, W.get(p)]; } } return null; };
+  let cache = {}; try { cache = JSON.parse(localStorage.getItem("seltr-cache") || "{}"); } catch (e) {}
+  const pop = document.createElement("div"); pop.id = "selpop"; pop.hidden = true;
+  pop.style.cssText = "position:fixed;left:12px;right:12px;bottom:14px;z-index:60;max-width:560px;margin:0 auto;background:var(--card,#fff);color:var(--fg,#222);border:2px solid var(--accent,#c60);border-radius:14px;padding:10px 12px;box-shadow:0 8px 28px rgba(0,0,0,.25);font-size:1rem;line-height:1.4";
+  document.body.appendChild(pop);
+  const e = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  let last = "", seq = 0, timer = 0;
+  const render = (w, body) => {
+    pop.innerHTML = `<div style="display:flex;gap:8px;align-items:flex-start"><div style="flex:1;min-width:0"><b>${e(w)}</b> <button type="button" data-say="${e(w)}" style="border:0;background:none;cursor:pointer;font-size:1.05rem;padding:0 4px" aria-label="Послушать">🔊</button><div>${body}</div></div><button type="button" data-x style="border:0;background:none;cursor:pointer;font-size:1.2rem;color:inherit;opacity:.6" aria-label="Закрыть">✕</button></div>`;
+    pop.hidden = false; pop.querySelector("[data-x]").onclick = () => { pop.hidden = true; last = ""; };
+  };
+  const ctxOf = sel => { try { const n = sel.anchorNode; const t = (n && (n.parentElement || n).closest("p,li,div,td,span") || n.parentElement).textContent || ""; const i = t.indexOf(sel.toString()); return t.slice(Math.max(0, t.lastIndexOf(".", i - 1) + 1), (t.indexOf(".", i + 1) + 1) || t.length).trim().slice(0, 300); } catch (x) { return ""; } };
+  async function show(w, ctx) {
+    const my = ++seq, hit = look(w);
+    if (hit) { render(w, `${e(hit[1])}${kn(w) !== hit[0] ? ` <span style="opacity:.65;font-size:.88em">(${e(hit[0])})</span>` : ""}`); return; }
+    const ck = kn(w) + "|" + kn(ctx).slice(0, 80);
+    if (cache[ck]) { render(w, e(cache[ck])); return; }
+    const S = getSample();
+    const gt = `<a href="https://translate.google.com/?sl=en&tl=ru&text=${encodeURIComponent(w)}" target="_blank" rel="noopener" style="color:var(--accent,#c60)">Открыть в Google Переводчике ↗</a>`;
+    if (!S) { render(w, `<span style="opacity:.75">Этого слова нет в словаре приложения.</span> ${gt}`); return; }
+    render(w, `<span style="opacity:.7">Перевожу…</span>`);
+    try {
+      const j = await S.json(`Translate the English word or phrase "${w}" into Russian as it is used in this sentence: "${ctx}". The learner is ${who}. Reply ONLY with JSON {"ru": "short Russian translation (1-4 words)", "note": "very short Russian note on the form, e.g. 'прош. время от go', or empty"}`, { modelTier: "quick" });
+      if (my !== seq) return;
+      const txt = (j.ru || "") + (j.note ? " — " + j.note : "");
+      cache[ck] = txt; try { localStorage.setItem("seltr-cache", JSON.stringify(cache)); } catch (x) {}
+      render(w, e(txt));
+    } catch (x) { if (my === seq) render(w, `<span style="opacity:.75">Не получилось перевести.</span> ${gt}`); }
+  }
+  document.addEventListener("selectionchange", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const sel = getSelection(); if (!sel || sel.isCollapsed) return;
+      const a = sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement);
+      if (!a || a.closest("textarea,input,#selpop")) return;
+      const w = sel.toString().replace(/\s+/g, " ").trim().replace(/^[^A-Za-z]+|[^A-Za-z']+$/g, "");
+      if (!w || w === last || !/^[A-Za-z][A-Za-z' -]*$/.test(w) || w.split(" ").length > 4 || w.length > 40) return;
+      last = w; show(w, ctxOf(sel));
+    }, 450);
+  });
+}
 /* ---------- интерфейс ---------- */
 if (typeof document !== "undefined" && DATA) {
   const C = DATA.cfg;
@@ -257,6 +304,7 @@ if (typeof document !== "undefined" && DATA) {
   }
   /* --- скажи вслух (микрофон) --- */
   let DICT = null, SAMPLE = null;
+  selTrInit(() => SAMPLE, DATA.topics.flatMap(t => (t.words || []).map(w => [w[0], w[1]])).concat((DATA.words || []).flatMap(x => (x.words || []).map(w => [w[0], w[1]])), DATA.reads.flatMap(r => r.g || [])), C.mode === "kid" ? "a 10-year-old Russian-speaking boy (A2)" : "a 15-year-old Russian-speaking teen (B1-B2)");
   function webRec() { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; return SR ? SR : null; }
   const norm = x => String(x).toLowerCase().replace(/[’']/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
   function sayScore(target, heard) {
