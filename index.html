@@ -88,6 +88,14 @@ code, .mono { font-family: var(--f-mono); font-size: .92em; }
 .row-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .prompt pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--f-body); font-size: .9rem; background: var(--bg); padding: 12px; border-radius: 10px; }
 .res { display: grid; gap: 10px; }
+.iv-log { display: grid; gap: 10px; margin-bottom: 12px; }
+.iv-msg { border-radius: 14px; padding: 12px 14px; max-width: 92%; line-height: 1.5; }
+.iv-msg.q { background: var(--card); border: 1px solid var(--line); justify-self: start; }
+.iv-msg.a { background: var(--accent-soft, var(--ok-soft)); justify-self: end; }
+.iv-msg.tip { background: var(--ok-soft); font-size: .92rem; justify-self: start; }
+.iv-msg .who { font-size: .8rem; color: var(--muted); display: block; margin-bottom: 2px; }
+#iv-setup select { margin-left: 6px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+
 .res a { color: var(--accent); font-weight: 700; }
 .res div { display: grid; gap: 2px; }
 .res span { color: var(--muted); font-size: .9rem; }
@@ -1163,6 +1171,28 @@ svg.pic .dot { fill: var(--accent); }
     <p class="lead">Ответы составлены по твоему резюме простыми фразами уровня B1. <b>Как тренироваться:</b> прочитай вопрос, ответь вслух сама, потом открой образец и сравни. Жёлтым — места, которые подставляешь ты.</p>
   </header>
 
+
+  <div class="section" id="iv-sim">
+    <h2>🎙 Тренажёр собеседования</h2>
+    <p class="muted small">Claude — интервьюер на позицию Frontend Developer. Он задаёт вопрос (🔊 слушай), ты отвечаешь <b>голосом</b> (🎤) или пишешь. Он задаёт уточняющие вопросы, как на настоящем собеседовании, а в конце — разбор: ошибки, лучшие формулировки, оценка.</p>
+    <div class="card" id="iv-setup" style="display:grid;gap:12px">
+      <label>Тип собеседования <select id="iv-type"><option value="mixed">Смешанное (HR + техническое)</option><option value="hr">HR и поведенческие вопросы</option><option value="tech">Техническое: React, Next.js, TypeScript, CSS</option></select></label>
+      <label>Сколько вопросов <select id="iv-len"><option value="5">5 (≈10 минут)</option><option value="8">8 (≈15 минут)</option><option value="3">3 (быстрая разминка)</option></select></label>
+      <label><input type="checkbox" id="iv-tips"> Подсказки после каждого ответа (иначе — только разбор в конце, как в жизни)</label>
+      <div><button type="button" class="btn" id="iv-start">▶ Начать собеседование</button></div>
+      <p class="muted small" id="iv-nosample" hidden>Здесь нет Claude (открыто не на claude.ai): вопросы будут из списка ниже, а в конце — образцы ответов и кнопка «Скопировать для чат-бота».</p>
+    </div>
+    <div id="iv-run" hidden>
+      <div class="iv-log" id="iv-log"></div>
+      <div class="card" id="iv-answer-box" style="display:grid;gap:10px">
+        <label class="tr-label"><span>Мой ответ <button type="button" class="mic" data-mic="iv-answer" hidden>🎤 говорить</button></span><textarea id="iv-answer" rows="5" placeholder="Нажми 🎤 и отвечай вслух — здесь появится, что распознал микрофон"></textarea></label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="iv-send">Ответить →</button><button type="button" class="btn ghost" id="iv-repeat">🔊 Повторить вопрос</button><button type="button" class="btn ghost" id="iv-hint">💡 Подсказка</button><button type="button" class="btn ghost" id="iv-stop">Закончить</button></div>
+        <div class="muted small" id="iv-status"></div>
+      </div>
+      <div class="card" id="iv-report" hidden></div>
+    </div>
+    <div class="muted small" id="iv-history"></div>
+  </div>
   <div class="section">
     <div class="row-head"><h2>Рассказ о себе · Tell me about yourself</h2><button type="button" class="btn ghost" id="intro-all">🔊 Слушать целиком</button></div>
     <div class="card intro" id="intro"></div>
@@ -5678,6 +5708,83 @@ function wireDict(d) {
   micRefresh(); if (spReady) spInit();
   new MutationObserver(() => micRefresh()).observe(document.body, { childList: true, subtree: true });
 }
+
+/* ---------- тренажёр собеседования (Олена 2026-11-25) ---------- */
+(() => {
+  const PROFILE = "Candidate: Lena, a career changer. Many years as an accountant, then studied frontend at GoIT and IT STEP. Since 2025 a frontend developer: React, Next.js, TypeScript, TanStack Query, Tailwind; builds landing pages for media buying and web apps; built an IQ-testing product alone (React/TS frontend, Supabase database and serverless functions, Apple Pay / Google Pay payments). Works remotely, mother of two sons. English level B1 moving to B2, Russian-speaking.";
+  const TYPES = { mixed: "a mix of HR/behavioural and technical frontend questions", hr: "HR and behavioural questions (motivation, teamwork, conflicts, strengths, career change, salary, remote work)", tech: "technical frontend questions (JavaScript, TypeScript, React, Next.js, CSS, performance, accessibility, Git, APIs) — ask her to explain concepts and give examples" };
+  let st = null;
+  const hist = () => { try { return JSON.parse(localStorage.getItem("iv-history") || "[]"); } catch (e) { return []; } };
+  const histShow = () => { const h = hist(); $("iv-history").innerHTML = h.length ? "Прошлые собеседования: " + h.slice(-6).map(x => `${esc(x.d)} — ${x.score != null ? x.score + "/10" : "без оценки"}`).join(" · ") : ""; };
+  const add = (cls, who, text, say) => { const d = document.createElement("div"); d.className = "iv-msg " + cls; d.innerHTML = `<span class="who">${who}${say ? ` <button type="button" class="say" data-ivsay>🔊</button>` : ""}</span>${esc(text).replace(/\n/g, "<br>")}`; if (say) d.querySelector("[data-ivsay]").onclick = () => speak(text); $("iv-log").appendChild(d); d.scrollIntoView({ block: "nearest" }); return d; };
+  const transcript = () => st.turns.map(t => (t.r === "q" ? "INTERVIEWER: " : "CANDIDATE: ") + t.x).join("\n");
+  const ask = q => { st.turns.push({ r: "q", x: q }); st.lastQ = q; add("q", "Интервьюер", q, true); speak(q); $("iv-answer").value = ""; $("iv-answer").focus(); };
+  async function claudeNext(final) {
+    const n = st.turns.filter(t => t.r === "a").length;
+    const base = `You are a friendly but professional interviewer at a product IT company, interviewing for a Junior/Middle Frontend Developer position. Interview type: ${TYPES[st.type]}. ${PROFILE}\nSpeak simple, clear English (B1-B2). One question at a time, max 2 sentences. Ask natural follow-ups when an answer is vague or interesting; otherwise move to a new topic. Never repeat a question.\nTRANSCRIPT SO FAR:\n${transcript() || "(start)"}\n`;
+    if (!final) {
+      const wantTip = st.tips && n > 0;
+      return SAMPLE.json(base + `Questions answered: ${n} of ${st.len}. Reply ONLY with JSON: {${wantTip ? '"tip": "2-3 short sentences IN RUSSIAN: what was good and 1-2 concrete language/content corrections of her LAST answer (quote wrong → right)", ' : ""}"q": "${n === 0 ? "a short greeting + the first question" : "your next question (follow-up or new topic)"}"}`, { modelTier: "default" });
+    }
+    return SAMPLE.json(base + `The interview is over. Evaluate HER answers. Reply ONLY with JSON: {"score": 0-10 overall, "scores": {"fluency": 0-10, "grammar": 0-10, "vocabulary": 0-10, "content": 0-10}, "summary": "3-4 sentences IN RUSSIAN: overall impression, strengths, what to improve", "answers": [{"q": "question", "mistakes": [{"wrong": "exact fragment", "right": "fixed", "why": "short, IN RUSSIAN"}], "better": "an improved version of HER answer in natural English (B2), keeping her facts, 3-6 sentences"}], "phrases": ["5 useful English phrases for her next interviews"]}. At most 4 mistakes per answer, most important first.`, { modelTier: "default" });
+  }
+  function bankQ() { const pool = QA.filter(x => !st.used.has(x[0])); const it = pool[Math.floor(Math.random() * pool.length)] || QA[0]; st.used.add(it[0]); st.bank.push(it); return it[0]; }
+  async function next() {
+    const n = st.turns.filter(t => t.r === "a").length;
+    if (n >= st.len) return finish();
+    if (!SAMPLE) return ask(bankQ());
+    $("iv-status").textContent = "Интервьюер думает…"; $("iv-send").disabled = true;
+    try { const j = await claudeNext(false); if (j.tip) add("tip", "Подсказка", j.tip); ask(j.q || bankQ()); }
+    catch (e) { if (e && e.code === "not_granted") { SAMPLE = null; } ask(bankQ()); }
+    finally { $("iv-status").textContent = `Вопрос ${Math.min(n + 1, st.len)} из ${st.len}`; $("iv-send").disabled = false; }
+  }
+  async function finish() {
+    $("iv-answer-box").hidden = true; const R = $("iv-report"); R.hidden = false;
+    const rec = { d: new Date().toLocaleDateString("ru-RU"), type: st.type, score: null };
+    if (!SAMPLE || !st.turns.some(t => t.r === "a")) {
+      const prompt = `Act as an English teacher and interview coach. ${PROFILE}\nHere is my interview practice transcript. For each of my answers: list grammar/vocabulary mistakes (wrong → right, explain in Russian), give a better B2 version of my answer, then rate fluency, grammar, vocabulary and content 0-10.\n\n${transcript()}`;
+      R.innerHTML = `<h3>Разбор</h3>${st.bank.map(([q, , a]) => `<div style="margin:10px 0"><b>${esc(q)}</b><div class="muted small">Образец:</div><div>${esc(a)}</div></div>`).join("")}<button type="button" class="btn ghost" id="iv-copy">📋 Скопировать для чат-бота</button>`;
+      $("iv-copy").onclick = () => navigator.clipboard.writeText(prompt).then(() => { $("iv-copy").textContent = "Скопировано ✓"; });
+    } else {
+      R.innerHTML = "Claude пишет разбор…";
+      try {
+        const j = await claudeNext(true); rec.score = +j.score || 0; const sc = j.scores || {};
+        R.innerHTML = `<h3>Разбор собеседования · ${rec.score}/10</h3>
+          <p>${["fluency", "grammar", "vocabulary", "content"].map(k => `<b>${{ fluency: "беглость", grammar: "грамматика", vocabulary: "словарь", content: "содержание" }[k]}:</b> ${+sc[k] || 0}/10`).join(" · ")}</p>
+          <p>${esc(j.summary || "")}</p>
+          ${(j.answers || []).map(a => `<div class="card" style="margin:10px 0;padding:14px"><b>${esc(a.q || "")}</b>
+            ${(a.mistakes || []).length ? `<ul>${a.mistakes.map(m => `<li><s>${esc(m.wrong || "")}</s> → <b>${esc(m.right || "")}</b> <span class="muted">${esc(m.why || "")}</span></li>`).join("")}</ul>` : `<p class="muted small">Ошибок нет 👍</p>`}
+            ${a.better ? `<div><span class="muted small">Лучше сказать:</span> <button type="button" class="say" data-t="${esc(a.better)}">🔊</button><div>${esc(a.better)}</div></div>` : ""}</div>`).join("")}
+          ${(j.phrases || []).length ? `<h3>Фразы на будущее</h3><ul>${j.phrases.map(x => `<li>${esc(x)} <button type="button" class="say" data-t="${esc(x)}">🔊</button></li>`).join("")}</ul>` : ""}`;
+        R.querySelectorAll("[data-t]").forEach(b => b.onclick = () => speak(b.dataset.t));
+      } catch (e) { R.textContent = "Claude сейчас не смог сделать разбор. Попробуй ещё раз позже."; }
+    }
+    R.insertAdjacentHTML("beforeend", `<p><button type="button" class="btn" id="iv-again">Ещё одно собеседование</button></p>`);
+    $("iv-again").onclick = () => { $("iv-run").hidden = true; $("iv-setup").hidden = false; };
+    const h = hist(); h.push(rec); try { localStorage.setItem("iv-history", JSON.stringify(h.slice(-30))); } catch (e) {} histShow();
+  }
+  $("iv-start").onclick = () => {
+    st = { type: $("iv-type").value, len: +$("iv-len").value, tips: $("iv-tips").checked, turns: [], used: new Set(), bank: [] };
+    $("iv-setup").hidden = true; $("iv-run").hidden = false; $("iv-log").innerHTML = ""; $("iv-report").hidden = true; $("iv-answer-box").hidden = false;
+    next();
+  };
+  $("iv-send").onclick = () => {
+    const a = $("iv-answer").value.trim(); if (!a) { $("iv-answer").focus(); return; }
+    if (DICT && DICT.active && DICT.active()) DICT.stop().catch(() => {});
+    st.turns.push({ r: "a", x: a }); add("a", "Я", a); $("iv-answer").value = ""; next();
+  };
+  $("iv-repeat").onclick = () => st && st.lastQ && speak(st.lastQ);
+  $("iv-hint").onclick = async () => {
+    if (!st || !st.lastQ) return;
+    const m = QA.find(x => x[0].toLowerCase() === st.lastQ.toLowerCase());
+    if (m) { add("tip", "Подсказка", m[3] + "\nОбразец: " + m[2]); return; }
+    if (!SAMPLE) { add("tip", "Подсказка", "Схема ответа: короткий ответ → пример из опыта (что сделала, результат) → вывод. Говори простыми фразами."); return; }
+    try { const j = await SAMPLE.json(`${PROFILE}\nInterview question: "${st.lastQ}". Reply ONLY with JSON {"hint": "IN RUSSIAN: how to structure the answer (2 short sentences)", "starter": "a natural English opening sentence she can use"}`, { modelTier: "quick" }); add("tip", "Подсказка", (j.hint || "") + "\nНачни так: " + (j.starter || "")); } catch (e) {}
+  };
+  $("iv-stop").onclick = () => { if (st) finish(); };
+  setTimeout(() => { $("iv-nosample").hidden = !!SAMPLE; }, 1500);
+  histShow();
+})();
 fixRefresh(); if (typeof MutationObserver !== "undefined") new MutationObserver(() => fixRefresh()).observe(document.body, { childList: true, subtree: true });
 (async () => {
   try {
