@@ -3259,6 +3259,86 @@ ID_QUIZ.push(...[
  ["Don't judge a book by its ___.", ["cover", "title", "page"], 0, "don't judge a book by its cover — не суди по внешности."],
  ["The early bird catches the ___.", ["worm", "fish", "fly"], 0, "the early bird catches the worm — кто рано встаёт…"]
 ].map(x => (x.late = 1, x)));
+/* ---------- ещё идиомы (v41) ---------- */
+SETS.push(
+ ID("id-daily3", "Повседневные — 3", [
+  ["like two peas in a pod","как две капли воды","Oleg and his best friend are [like two peas in a pod]."],
+  ["the apple of my eye","свет моих очей, любимчик","My sons are [the apple of my eye]."],
+  ["a full plate","куча дел","Sorry, I have [a full plate] this week — can we meet next Monday?"],
+  ["sleep like a log","спать как убитый","After the trip the boys [slept like a log]."],
+  ["eat like a horse","есть за троих","Igor is fifteen — he [eats like a horse]."],
+  ["a home away from home","второй дом","This café has become [a home away from home] for me."],
+  ["rain or shine","в любую погоду, что бы ни было","We do our English lesson every day, [rain or shine]."],
+  ["head over heels","по уши (влюблён); кувырком","He's [head over heels] in love with her."],
+  ["in the blink of an eye","в мгновение ока","The summer went by [in the blink of an eye]."],
+  ["a stone's throw (from)","рукой подать","The school is [a stone's throw from] our house."],
+  ["catch someone red-handed","поймать с поличным","I [caught] Oleg [red-handed] eating chocolate before dinner."],
+  ["cry wolf","поднимать ложную тревогу","If you [cry wolf] too often, nobody will believe you."],
+  ["the black sheep (of the family)","белая ворона, паршивая овца","My uncle was [the black sheep of the family]."],
+  ["a bad apple","паршивая овца (о человеке, который портит группу)","One [bad apple] can ruin the whole team."],
+  ["get a kick out of","получать кайф от","Oleg [gets a kick out of] solving hard maths problems."],
+  ["have a sweet tooth","быть сладкоежкой","Both my boys [have a sweet tooth]."],
+  ["hit the books","засесть за учёбу","Exams are next week — time to [hit the books]."],
+  ["pass with flying colours","сдать блестяще","Igor [passed] his test [with flying colours]."],
+  ["a bookworm","книжный червь","Igor was [a bookworm] when he was little."],
+  ["teacher's pet","любимчик учителя","Nobody wants to be called the [teacher's pet]."]
+ ]),
+ ID("id-career3", "Карьера и перемены — 3", [
+  ["climb the career ladder","продвигаться по карьерной лестнице","She wants to [climb the career ladder] in a big tech company."],
+  ["test the waters","прощупать почву","I'm [testing the waters] with a few freelance orders."],
+  ["take the plunge","решиться (на важный шаг)","After years in accounting, she finally [took the plunge] and became a developer."],
+  ["turn over a new leaf","начать с чистого листа","From Monday I'm [turning over a new leaf]: English every morning."],
+  ["a leap of faith","шаг в неизвестность, риск с верой в успех","Changing careers was [a leap of faith], but it worked."],
+  ["jump on the bandwagon","примкнуть к модному течению","Everyone is [jumping on the AI bandwagon]."],
+  ["ahead of the curve","на шаг впереди, в тренде","Learning AI tools keeps you [ahead of the curve]."],
+  ["cutting-edge","передовой, самый современный","They use [cutting-edge] technology."],
+  ["a win-win situation","ситуация, выгодная обеим сторонам","Freelance for a friend's startup is [a win-win situation]."],
+  ["a dead end","тупик","That job was [a dead end] — no growth at all."],
+  ["the sky's the limit","нет предела возможностям","With your skills, [the sky's the limit]!"],
+  ["know the drill","знать порядок, что делать","You [know the drill]: tests first, then the pull request."],
+  ["move the goalposts","менять правила по ходу игры","The client keeps [moving the goalposts] — the requirements change every week."],
+  ["back to basics","вернуться к основам","Let's go [back to basics] and repeat the Present Perfect."],
+  ["bring something to the table","привнести (опыт, пользу)","My accounting background is what I [bring to the table]."],
+  ["fly under the radar","оставаться незамеченным","Small bugs can [fly under the radar] for months."],
+  ["wear many hats","выполнять много ролей","In a small startup you have to [wear many hats]."],
+  ["a no-brainer","очевидное решение","Using TypeScript in a big project is [a no-brainer]."],
+  ["make waves","наделать шуму, произвести впечатление","Her first project really [made waves] in the team."]
+ ])
+);
+ID_QUIZ.push(...[
+ ["The twins are like two peas in a ___.",["pod","box","bag"],0,"like two peas in a pod — как две капли воды."],
+ ["My grandson is the apple of my ___.",["eye","heart","hand"],0,"the apple of my eye — любимчик, свет очей."],
+ ["After the hike I slept like a ___.",["log","stone","baby bear"],0,"sleep like a log — спать как убитый."],
+ ["Igor eats like a ___.",["horse","cow","wolf"],0,"eat like a horse — есть за троих."],
+ ["We train every Saturday, rain or ___.",["shine","sun","snow"],0,"rain or shine — в любую погоду."],
+ ["The holidays passed in the blink of an ___.",["eye","hour","hand"],0,"in the blink of an eye — в мгновение ока."],
+ ["The shop is just a stone's ___ from here.",["throw","step","walk"],0,"a stone's throw — рукой подать."],
+ ["Mum caught him red-___ with the cookies.",["handed","faced","footed"],0,"catch red-handed — поймать с поличным."],
+ ["Don't cry ___ — people will stop believing you.",["wolf","fox","bear"],0,"cry wolf — поднимать ложную тревогу."],
+ ["I have a sweet ___, so I can't say no to cake.",["tooth","mouth","heart"],0,"have a sweet tooth — быть сладкоежкой."],
+ ["Exams are coming — time to hit the ___.",["books","notes","desk"],0,"hit the books — засесть за учёбу."],
+ ["She passed with flying ___.",["colours","flags","stars"],0,"pass with flying colours — сдать блестяще."],
+ ["Oleg gets a ___ out of solving puzzles.",["kick","fun","joy"],0,"get a kick out of — получать удовольствие."],
+ ["She's slowly climbing the career ___.",["ladder","stairs","hill"],0,"climb the career ladder."],
+ ["I'm just testing the ___ with this freelance job.",["waters","ground","sea"],0,"test the waters — прощупать почву."],
+ ["After many years she took the ___ and changed careers.",["plunge","jump","step"],0,"take the plunge — решиться."],
+ ["From today I'm turning over a new ___.",["leaf","page","sheet"],0,"turn over a new leaf — начать с чистого листа."],
+ ["Moving abroad was a leap of ___.",["faith","hope","trust"],0,"a leap of faith — шаг в неизвестность."],
+ ["Everyone is jumping on the ___ and building AI apps.",["bandwagon","train","bus"],0,"jump on the bandwagon — примкнуть к моде."],
+ ["Our company is always ahead of the ___.",["curve","line","road"],0,"ahead of the curve — на шаг впереди."],
+ ["It's a win-___ situation for both of us.",["win","lose","good"],0,"a win-win situation — выгодно обеим сторонам."],
+ ["That job was a dead ___ — I learned nothing new.",["end","road","stop"],0,"a dead end — тупик."],
+ ["With your talent, the sky's the ___!",["limit","top","end"],0,"the sky's the limit — нет предела."],
+ ["You know the ___: write tests first.",["drill","rule","way"],0,"know the drill — знать порядок."],
+ ["The client keeps moving the ___.",["goalposts","deadline","target"],0,"move the goalposts — менять правила по ходу."],
+ ["What can you bring to the ___?",["table","office","team"],0,"bring something to the table — что ты привносишь."],
+ ["In a startup you have to wear many ___.",["hats","shoes","coats"],0,"wear many hats — много ролей."],
+ ["Taking this offer is a no-___.",["brainer","thinker","mind"],0,"a no-brainer — очевидное решение."],
+ ["The bug flew under the ___ for months.",["radar","table","sky"],0,"fly under the radar — оставаться незамеченным."],
+ ["Let's get back to ___ and review the grammar.",["basics","start","school"],0,"back to basics — к основам."],
+ ["He's head over ___ in love.",["heels","toes","ears"],0,"head over heels — по уши."],
+ ["My cousin is the black ___ of the family.",["sheep","cat","horse"],0,"the black sheep — белая ворона."]
+].map(x => (x.late = 1, x)));
 makeQuiz("quiz-idioms", "score-idioms", ID_QUIZ);
 /* ---------- ещё слова по темам (v11) ---------- */
 SETS.push(
