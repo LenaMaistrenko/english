@@ -122,6 +122,15 @@ details summary { cursor: pointer; font-weight: 800; }
 #mascot .eye{animation:blink 4s infinite}@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
 #mascot.idle svg{animation:wiggle 1.2s ease}@keyframes wiggle{20%{transform:rotate(-5deg)}40%{transform:rotate(5deg)}60%{transform:rotate(-3deg)}80%{transform:rotate(2deg)}}
 @media (prefers-reduced-motion:reduce){.fly,.combo,.reveal,#mascot .eye{animation:none!important;transition:none!important;opacity:1;transform:none}}
+
+#mascot .m-sad,#mascot .tear{display:none}#mascot.sad .m-sad,#mascot.sad .tear{display:inline}#mascot.sad .m-happy{display:none}
+#mascot.sad .tear{animation:drip 1s ease-in infinite}@keyframes drip{0%{transform:translateY(0);opacity:1}100%{transform:translateY(10px);opacity:0}}
+#mascot.dance svg{animation:dance 1s ease-in-out 3}
+@keyframes dance{0%,100%{transform:translateY(0) rotate(0)}20%{transform:translate(-8px,-14px) rotate(-12deg)}40%{transform:translate(0,0) rotate(0) scaleX(-1)}60%{transform:translate(8px,-14px) rotate(12deg) scaleX(-1)}80%{transform:translate(0,0) rotate(0)}}
+#mascot .note{position:absolute;bottom:70px;font-size:1.4rem;pointer-events:none;animation:note 2.4s ease-out forwards}
+@keyframes note{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:0;transform:translateY(-80px) rotate(20deg)}}
+#mascot .kl-mute{pointer-events:auto;position:absolute;right:-4px;top:-8px;border:0;border-radius:50%;width:28px;height:28px;background:var(--card);box-shadow:0 1px 4px #0003;font-size:14px;cursor:pointer}
+#mascot{position:fixed}
 </style>
 </head>
 <body>
@@ -132,10 +141,11 @@ details summary { cursor: pointer; font-weight: 800; }
     <p class="muted" id="sub"></p>
     <div class="progress" aria-hidden="true"><i id="pbar" style="width:0%"></i></div>
     <p class="small muted" id="ptext"></p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ghost" id="report">📤 Отчёт для мамы</button><button type="button" class="btn ghost" id="th-open">📘 Теория: времена</button><button type="button" class="btn ghost" id="tn-open">⏱ Какое это время?</button><button type="button" class="btn ghost" id="st-open">📖 Истории про нас</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ghost" id="report">📤 Отчёт для мамы</button><button type="button" class="btn ghost" id="th-open">📘 Теория: времена</button><button type="button" class="btn ghost" id="tn-open">⏱ Какое это время?</button><button type="button" class="btn ghost" id="st-open">📖 Истории про нас</button><button type="button" class="btn ghost" id="wd-open" hidden>🎀 Гардероб Клуши</button></div>
     <div id="th" class="stack" hidden></div>
     <div id="tn" class="stack" hidden></div>
     <div id="st" class="stack" hidden></div>
+    <div id="wd" class="stack" hidden></div>
     <details class="card"><summary>Все уроки по неделям</summary><div class="weeks" id="weeks"></div></details>
   </div>
   <div id="lesson"></div>
@@ -313,16 +323,49 @@ if (typeof document !== "undefined" && DATA) {
   const C = DATA.cfg;
   let cur = store.get("cur", 1), done = store.get("done", {}), stars = store.get("stars", 0);
   let LS = { ok: 0, bad: 0, said: [] };   // результаты текущего урока — для отчёта маме
-  const KLUSHA = `<svg viewBox="0 0 120 100" aria-label="Клуша"><ellipse cx="62" cy="62" rx="48" ry="32" fill="#E4893C"/><ellipse cx="66" cy="72" rx="34" ry="18" fill="#F6C48E"/><path d="M90 40 q18 -2 22 20 q-6 14 -22 12z" fill="#E4893C"/><circle cx="30" cy="52" r="26" fill="#E4893C"/><path d="M14 58 q6 18 22 16 q8 -8 0 -16z" fill="#3a2a20"/><ellipse cx="22" cy="32" rx="9" ry="7" fill="#C96A28"/><ellipse cx="44" cy="30" rx="9" ry="7" fill="#C96A28"/><g class="eye" style="transform-origin:24px 48px;transform-box:view-box"><circle cx="24" cy="48" r="5" fill="#111"/><circle cx="25.5" cy="46.5" r="1.6" fill="#fff"/></g><circle cx="12" cy="60" r="3" fill="#111"/><path d="M12 66 q6 4 12 0" stroke="#111" stroke-width="2" fill="none"/><ellipse cx="32" cy="60" rx="6" ry="3.5" fill="#F29A9A" opacity=".7"/><ellipse cx="44" cy="92" rx="8" ry="5" fill="#C96A28"/><ellipse cx="84" cy="92" rx="8" ry="5" fill="#C96A28"/></svg>`;
-  const CHEER = { good: ["Super! 🎉", "Great job, ${N}! ⭐", "Yes! Молодец!", "Wow! Так держать!", "Excellent! 💪", "Klusha is proud of you! 🐹", "Perfect! 🔥", "You rock! 🤘"], bad: ["Почти! Try again 💪", "Не сдавайся! You can do it!", "Ничего, Клуша тоже ошибается 🐹", "Oops! Попробуй ещё!"], done: ["Урок пройден! 🎉 Клуша гордится тобой!", "Lesson complete! 🏆 Ты супер, ${N}!", "Ура! +5 ⭐ Клуша танцует! 💃"] };
-  let mTimer = 0, mLast = 0;
-  function cheer(kind) {
+  const KLUSHA = `<svg viewBox="0 -14 120 114" aria-label="Клуша">
+    <g class="acc acc-scarf"><path d="M44 66 q8 14 20 8 l-2 -9 q-9 4 -16 -6z" fill="#e23b3b"/><path d="M58 70 l4 18 l7 -2 l-5 -17z" fill="#c62828"/></g>
+    <ellipse cx="62" cy="62" rx="48" ry="32" fill="#E4893C"/><ellipse cx="66" cy="72" rx="34" ry="18" fill="#F6C48E"/><path d="M90 40 q18 -2 22 20 q-6 14 -22 12z" fill="#E4893C"/>
+    <circle cx="30" cy="52" r="26" fill="#E4893C"/><ellipse cx="17" cy="67" rx="12" ry="7.5" fill="#F6D3A6"/><path d="M4 59 q1 -13 17 -14 q9 2 8 11 q-1 5 -8 6 q-10 2 -17 -3z" fill="#5a3418"/><ellipse cx="22" cy="32" rx="9" ry="7" fill="#C96A28"/><ellipse cx="44" cy="30" rx="9" ry="7" fill="#C96A28"/>
+    <g class="eye" style="transform-origin:24px 48px;transform-box:view-box"><circle cx="24" cy="48" r="5" fill="#111"/><circle cx="25.5" cy="46.5" r="1.6" fill="#fff"/></g>
+    <path d="M5 56 q5 -3.5 10 0 q-5 6 -10 0z" fill="#1a0f08"/><circle cx="8" cy="55.6" r=".9" fill="#fff" opacity=".6"/><path class="m-happy" d="M8 67 q5 4.5 11 0" stroke="#3a2010" stroke-width="2" fill="none" stroke-linecap="round"/><path class="m-sad" d="M8 70 q5 -4.5 11 0" stroke="#3a2010" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <ellipse cx="33" cy="62" rx="5.5" ry="3.2" fill="#F29A9A" opacity=".6"/><path class="tear" d="M27 56 q-4 7 0 9 q4 -2 0 -9z" fill="#5ab4ff"/>
+    <ellipse cx="44" cy="92" rx="8" ry="5" fill="#C96A28"/><ellipse cx="84" cy="92" rx="8" ry="5" fill="#C96A28"/>
+    <g class="acc acc-glasses"><circle cx="24" cy="48" r="8" fill="#1d1d1d" opacity=".88"/><path d="M21 44 l4 -1" stroke="#fff" stroke-width="1.5" opacity=".7"/><path d="M31 46 L46 40" stroke="#1d1d1d" stroke-width="2.5"/></g>
+    <g class="acc acc-cap"><path d="M12 30 q18 -26 44 -4 z" fill="#2f6fde"/><path d="M14 30 q-10 1 -14 6 q10 2 20 -3z" fill="#1f4fae"/><circle cx="34" cy="16" r="2.5" fill="#fff"/></g>
+    <g class="acc acc-phones"><path d="M18 34 q14 -30 40 -2" stroke="#333" stroke-width="4" fill="none"/><rect x="50" y="26" width="10" height="14" rx="4" fill="#e84393"/></g>
+    <g class="acc acc-bow"><path d="M38 24 l-9 -8 l0 16z M38 24 l9 -8 l0 16z" fill="#ff4fa3"/><circle cx="38" cy="24" r="3.5" fill="#d61f7a"/></g>
+    <g class="acc acc-crown"><path d="M16 22 l4 -16 l7 9 l6 -12 l6 12 l7 -9 l3 16z" fill="#ffd23f" stroke="#c99a00" stroke-width="1.5"/><circle cx="33" cy="15" r="2" fill="#e23b3b"/></g>
+  </svg>`;
+  const OUTFIT = [["bow", "🎀 Бантик", 50], ["glasses", "🕶 Крутые очки", 100], ["scarf", "🧣 Шарф", 150], ["cap", "🧢 Кепка", 200], ["phones", "🎧 Наушники", 250], ["crown", "👑 Корона", 300]];
+  const CHEER = {
+    good: [["Super!", "🎉"], ["Great job, ${N}!", "⭐"], ["Yes! Well done!", "💪"], ["Wow! Amazing!", "🤩"], ["Excellent!", "✨"], ["I'm so proud of you!", "🐹"], ["Perfect!", "🔥"], ["You rock!", "🤘"], ["Fantastic!", "🌟"]],
+    bad: [["Oops! Try again!", "💪"], ["Don't give up!", "🙂"], ["Almost! You can do it!", "👍"], ["Oh no! Let's try once more!", "🐹"]],
+    done: [["Lesson complete! I'm so proud of you, ${N}!", "🏆"], ["Hooray! Let's dance!", "💃"], ["You did it! Super star!", "⭐"]] };
+  let mTimer = 0, mLast = 0, mN = 0;
+  const klMuted = () => store.get("kl-mute", false);
+  function klSay(text) {
+    if (klMuted() || !("speechSynthesis" in window)) return;
+    try { if (speechSynthesis.speaking) return; const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.pitch = 1.9; u.rate = 1.08; u.volume = .9; speechSynthesis.speak(u); } catch (e) {}
+  }
+  const HEAD = ["bow", "cap", "phones", "crown"];
+  const outfitNow = () => { const on = store.get("outfit", null); if (on) return on; const got = OUTFIT.filter(o => stars >= o[2]).map(o => o[0]); const h = got.filter(k => HEAD.includes(k)).pop(); return got.filter(k => !HEAD.includes(k)).concat(h ? [h] : []); };
+  function klWear() {
+    const m = $("mascot"); if (!m) return; const on = outfitNow();
+    OUTFIT.forEach(([k, , need]) => { const g = m.querySelector(".acc-" + k); if (g) g.style.display = stars >= need && on.includes(k) ? "inline" : "none"; });
+  }
+  function klNotes() { const m = $("mascot"); if (!m) return; ["🎵", "🎶", "✨", "🎵"].forEach((n, i) => { const e = document.createElement("span"); e.className = "note"; e.textContent = n; e.style.right = 20 + i * 22 + "px"; e.style.animationDelay = i * .25 + "s"; m.appendChild(e); setTimeout(() => e.remove(), 2600); }); }
+  function cheer(kind, force) {
     const m = $("mascot"); if (!m) return;
-    if (kind === "good" && Date.now() - mLast < 1200) return; mLast = Date.now();
-    const a = CHEER[kind], t = a[Math.floor(Math.random() * a.length)].replace("${N}", C.name);
-    m.querySelector(".bub").textContent = t; m.className = "talk " + (kind === "bad" ? "sad" : "hop");
-    void m.offsetWidth; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, kind === "done" ? 3500 : 2200);
+    if (kind === "good" && !force && Date.now() - mLast < 1200) return; mLast = Date.now();
+    const a = CHEER[kind] || CHEER.good, [en, emo] = a[Math.floor(Math.random() * a.length)], t = en.replace("${N}", C.name);
+    m.querySelector(".bub").textContent = t + " " + emo;
+    const dance = kind === "done" || kind === "dance";
+    m.className = "talk " + (kind === "bad" ? "sad" : dance ? "dance" : "hop");
+    void m.offsetWidth; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, dance ? 3200 : 2200);
+    if (dance) klNotes();
     if (kind === "done") confetti();
+    mN++; if (kind !== "good" || mN % 2 === 0) klSay(t);
   }
   function confetti() {
     const cols = ["#f06a12", "#ffd23f", "#3ec46d", "#3b82f6", "#e84393"];
@@ -330,8 +373,24 @@ if (typeof document !== "undefined" && DATA) {
   }
   if (C.mode === "kid") setInterval(() => { const m = $("mascot"); if (m && !m.className && document.visibilityState === "visible") { m.className = "idle"; setTimeout(() => { if (m.className === "idle") m.className = ""; }, 1300); } }, 9000);
   if (C.mode === "kid" && !$("mascot")) {
-    const m = document.createElement("div"); m.id = "mascot"; m.innerHTML = `<div class="bub"></div>${KLUSHA}`; document.body.appendChild(m);
-    m.querySelector("svg").addEventListener("click", () => { const tips = ["Привет! Я Клуша 🐹", "Нажми 🔊 — я люблю слушать английский!", "Hello = Hi! Goodbye = Bye! 😉", "Ещё один урок — и ещё 5 звёзд! ⭐"]; m.querySelector(".bub").textContent = tips[Math.floor(Math.random() * tips.length)]; m.className = "talk hop"; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, 2500); });
+    const m = document.createElement("div"); m.id = "mascot"; m.innerHTML = `<div class="bub"></div>${KLUSHA}<button type="button" class="kl-mute" title="Голос Клуши">${klMuted() ? "🔇" : "🔊"}</button>`; document.body.appendChild(m);
+    klWear();
+    m.querySelector(".kl-mute").onclick = e => { const v = !klMuted(); store.set("kl-mute", v); e.currentTarget.textContent = v ? "🔇" : "🔊"; if (!v) klSay("Hi! I can talk now!"); };
+    m.querySelector("svg").addEventListener("click", () => {
+      const tips = [["Hi! I'm Klusha!", "🐹"], ["Hello means hi! Goodbye means bye!", "😉"], ["Let's learn English together!", "📚"], ["Click the speaker and listen!", "🔊"], ["Can I have a carrot, please?", "🥕"], ["Let's dance!", "💃"]];
+      const [en, emo] = tips[Math.floor(Math.random() * tips.length)];
+      m.querySelector(".bub").textContent = en + " " + emo; const d = en === "Let's dance!"; m.className = "talk " + (d ? "dance" : "hop"); if (d) klNotes();
+      clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, d ? 3200 : 2500); klSay(en);
+    });
+  }
+  function wardrobe() {
+    const box = $("wd"); if (!box) return;
+    const on = outfitNow();
+    box.innerHTML = `<div class="card stack"><b>🎀 Гардероб Клуши</b><span class="small muted">За звёзды открываются новые вещи. Нажми, чтобы надеть или снять (на голову — одна вещь). У тебя ⭐ ${stars}.</span>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">${OUTFIT.map(([k, name, need]) => stars >= need
+        ? `<button type="button" class="btn ${on.includes(k) ? "" : "ghost"}" data-wd="${k}">${name}${on.includes(k) ? " ✓" : ""}</button>`
+        : `<button type="button" class="btn ghost" disabled style="opacity:.55">🔒 ${name.slice(2)} · ${need} ⭐</button>`).join("")}</div></div>`;
+    box.querySelectorAll("[data-wd]").forEach(b => b.onclick = () => { const k = b.dataset.wd, cur = new Set(outfitNow()); if (cur.has(k)) cur.delete(k); else { if (HEAD.includes(k)) HEAD.forEach(h => cur.delete(h)); cur.add(k); } store.set("outfit", [...cur]); klWear(); wardrobe(); cheer("dance"); });
   }
   const SHORT = {"hello": "hi / hey", "goodbye": "bye / see you", "thank you": "thanks / thx", "thanks": "thx", "please": "pls (в переписке)", "you are welcome": "no problem / np", "you're welcome": "no problem / np", "good morning": "morning!", "good night": "night! / nighty-night", "good evening": "evening!", "see you later": "see ya / later!", "how are you": "how's it going? / what's up?", "what is your name": "what's your name?", "i am": "I'm", "you are": "you're", "he is": "he's", "she is": "she's", "it is": "it's", "we are": "we're", "they are": "they're", "i do not": "I don't", "do not": "don't", "does not": "doesn't", "cannot": "can't", "can not": "can't", "will not": "won't", "i will": "I'll", "i have": "I've", "is not": "isn't", "are not": "aren't", "was not": "wasn't", "did not": "didn't", "yes": "yeah / yep", "no": "nope", "okay": "OK / k", "father": "dad", "mother": "mum / mom", "grandmother": "granny / grandma", "grandfather": "grandpa", "brother": "bro", "sister": "sis", "television": "TV", "telephone": "phone", "bicycle": "bike", "photograph": "photo", "refrigerator": "fridge", "mathematics": "maths / math", "examination": "exam", "laboratory": "lab", "advertisement": "ad", "information": "info", "favourite": "fave", "sorry": "oops / my bad", "excuse me": "'scuse me", "congratulations": "congrats", "because": "'cause / cos", "going to": "gonna", "want to": "wanna", "got to": "gotta", "kind of": "kinda", "a lot of": "lots of", "really good": "awesome", "very good": "great / cool", "delicious": "yummy", "little": "tiny", "children": "kids", "friend": "buddy / mate", "for example": "e.g. / like", "as soon as possible": "ASAP", "by the way": "BTW", "laugh out loud": "LOL", "in my opinion": "IMO"};   // Олег: «показывай, как сказать короче»
   const shortOf = w => SHORT[String(w).toLowerCase().replace(/[!?.]/g, "").trim()];
@@ -348,14 +407,16 @@ if (typeof document !== "undefined" && DATA) {
     combo = ok ? combo + 1 : 0;
     if (ok && (combo === 3 || combo === 5 || combo === 10 || (combo > 10 && combo % 5 === 0))) {
       const c = document.createElement("div"); c.className = "combo"; c.textContent = `🔥 Combo x${combo}!`; document.body.appendChild(c); setTimeout(() => c.remove(), 1300);
-      if (combo >= 5) confetti();
+      if (combo >= 5) { confetti(); cheer("dance"); } else klSay("Combo! " + combo + " in a row!");
     }
   }
   function levelUp(before, after) {
     if (C.mode !== "kid" || levelOf(after) <= levelOf(before)) return;
     const d = document.createElement("div"); d.className = "levelup";
     d.innerHTML = `<div><div class="big">🏅</div><b style="font-size:1.3rem">Новый уровень!</b><p style="margin:8px 0 14px">${LEVELS[levelOf(after)]}<br><span class="small muted">${after} ⭐ — Клуша гордится тобой!</span></p><button type="button" class="btn">Ура! 🎉</button></div>`;
-    document.body.appendChild(d); confetti(); d.querySelector("button").onclick = () => d.remove(); d.onclick = e => { if (e.target === d) d.remove(); };
+    const item = OUTFIT.find(o => before < o[2] && after >= o[2]);
+    if (item) { d.querySelector("p").insertAdjacentHTML("beforeend", `<br><b>Клуше открылся подарок: ${item[1]}!</b>`); const cur = new Set(outfitNow()); if (HEAD.includes(item[0])) HEAD.forEach(h => cur.delete(h)); cur.add(item[0]); store.set("outfit", [...cur]); }
+    document.body.appendChild(d); confetti(); klWear(); cheer("dance"); klSay("New level! You are a star!"); d.querySelector("button").onclick = () => d.remove(); d.onclick = e => { if (e.target === d) d.remove(); };
   }
   const addStar = k => { const before = stars; stars += k; store.set("stars", stars); const st = $("stars"); st.textContent = "⭐ " + stars; st.classList.remove("bump"); void st.offsetWidth; st.classList.add("bump"); fly("+" + k + " ⭐", lastEl); lastEl = null; if (k < 5) cheer("good"); levelUp(before, stars); };
   const KIND = { new: "Новая тема", practice: "Тренировка", review: "Пятница: повторение" };
@@ -811,6 +872,7 @@ if (typeof document !== "undefined" && DATA) {
     };
     $("lesson").scrollIntoView({ block: "start" });
   }
+  if (C.mode === "kid") { $("wd-open").hidden = false; $("wd-open").onclick = () => { const b = $("wd"); b.hidden = !b.hidden; if (!b.hidden) { wardrobe(); b.scrollIntoView({ block: "start" }); } }; }
   $("st-open").onclick = () => { const b = $("st"); b.hidden = !b.hidden; if (!b.hidden) { stList(); b.scrollIntoView({ block: "start" }); } };
   if (!ST.length) $("st-open").hidden = true;
   header(); show();
