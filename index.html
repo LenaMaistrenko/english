@@ -725,6 +725,12 @@ svg.pic .dot { fill: var(--accent); }
     <div class="quiz" id="quiz-tenses"></div>
     <div class="score" id="score-tenses"></div>
   </div>
+  <div class="section">
+    <h2>Какое это время?</h2>
+    <p class="muted small">Глагол выделен жирным. Определи время — после ответа появится подсказка, по каким признакам его узнать.</p>
+    <div class="quiz" id="quiz-tname"></div>
+    <div class="score" id="score-tname"></div>
+  </div>
 </section>
 
 <!-- ============ ГЛАГОЛЫ ============ -->
@@ -1249,7 +1255,7 @@ function makeQuiz(boxId, scoreId, bank) {
     items = pick();
     box.innerHTML = items.map(([q, opts, ok, why], i) => {
       const order = shuffle(opts.map((o, j) => j));
-      return `<div class="card q" data-ok="${ok}"><div class="q-text">${i + 1}. ${esc(q).replace("___", '<span class="gap">?</span>')}</div>
+      return `<div class="card q" data-ok="${ok}"><div class="q-text">${i + 1}. ${esc(q).replace("___", '<span class="gap">?</span>').replace(/\[([^\]]+)\]/g, "<b>$1</b>")}</div>
         <div class="opts">${order.map(j => `<button type="button" id="${boxId}-${i}-${j}" data-j="${j}">${esc(opts[j])}</button>`).join("")}</div>
         <div class="expl" hidden>${esc(why)}</div></div>`;
     }).join("");
@@ -2058,6 +2064,99 @@ document.addEventListener("click", e => {
   el.classList.add("flash-on"); setTimeout(() => el.classList.remove("flash-on"), 1600);
 });
 makeQuiz("quiz-tenses", "score-tenses", QUIZ_TENSES.concat(MORE_TENSES));
+/* ---------- «Какое это время?» (v32) ---------- */
+const TN = { ps: "Present Simple", pc: "Present Continuous", pp: "Present Perfect", ppc: "Present Perfect Continuous",
+  pas: "Past Simple", pac: "Past Continuous", pap: "Past Perfect", papc: "Past Perfect Continuous",
+  fs: "Future Simple (will)", gt: "be going to", fc: "Future Continuous", fp: "Future Perfect", fpc: "Future Perfect Continuous" };
+const TNQ = (q, ok, other, why) => [q, [TN[ok], ...other.map(k => TN[k])], 0, why];
+const TENSE_NAME_QUIZ = [
+ // Present Simple
+ TNQ("Oleg [goes] to school at eight every day.", "ps", ["pc", "pas", "pp"], "Привычка, регулярное действие (every day) → Present Simple: V / V-s."),
+ TNQ("Water [boils] at 100 degrees.", "ps", ["pc", "pp", "fs"], "Факт, закон природы → Present Simple."),
+ TNQ("My train [leaves] at 7:45 tomorrow.", "ps", ["pc", "fs", "gt"], "Расписание (поезда, уроки) — даже о будущем → Present Simple."),
+ TNQ("Igor [doesn't like] porridge.", "ps", ["pc", "pas", "pp"], "doesn't + V — отрицание в Present Simple. like — глагол состояния, без -ing."),
+ TNQ("How often [do] you [check] your email?", "ps", ["pc", "pp", "pas"], "How often + do/does → вопрос в Present Simple."),
+ TNQ("This app [belongs] to our team.", "ps", ["pc", "pp", "ppc"], "belong — глагол состояния, в Continuous не бывает → Present Simple."),
+ // Present Continuous
+ TNQ("Be quiet! The baby [is sleeping].", "pc", ["ps", "pp", "pac"], "Прямо сейчас (Be quiet!) → Present Continuous: am/is/are + V-ing."),
+ TNQ("I [am learning] TypeScript this month.", "pc", ["ps", "ppc", "pp"], "Временный процесс в этот период (this month) → Present Continuous."),
+ TNQ("We [are meeting] the client tomorrow at ten.", "pc", ["ps", "fc", "fs"], "Договорённость на будущее (уже запланировано, есть время) → Present Continuous."),
+ TNQ("Look! It [is snowing]!", "pc", ["ps", "pac", "ppc"], "Look! — происходит в момент речи → Present Continuous."),
+ TNQ("Prices [are rising] these days.", "pc", ["ps", "pp", "ppc"], "Меняющаяся ситуация сейчас (these days) → Present Continuous."),
+ TNQ("Why [are] you [laughing]?", "pc", ["ps", "pac", "ppc"], "are + V-ing → Present Continuous (что происходит сейчас)."),
+ // Present Perfect
+ TNQ("I [have] already [sent] the report.", "pp", ["pas", "pap", "ppc"], "have + V3, already → Present Perfect: результат важен сейчас."),
+ TNQ("[Have] you ever [been] to London?", "pp", ["pas", "pap", "ps"], "Опыт в жизни (ever) → Present Perfect."),
+ TNQ("We [have known] each other since 2015.", "pp", ["ppc", "pas", "pap"], "since + know (глагол состояния) → Present Perfect, а не Continuous."),
+ TNQ("Oleg [has lost] his keys again!", "pp", ["pas", "pap", "pc"], "has + V3 — результат сейчас (ключей нет) → Present Perfect."),
+ TNQ("She [hasn't finished] the task yet.", "pp", ["pas", "ppc", "pap"], "hasn't + V3 + yet → Present Perfect."),
+ TNQ("This is the best film I [have] ever [seen].", "pp", ["pas", "pap", "ps"], "the best … ever → Present Perfect."),
+ // Present Perfect Continuous
+ TNQ("I [have been waiting] for you for an hour!", "ppc", ["pp", "pc", "papc"], "have been + V-ing + for an hour → Present Perfect Continuous: длится до сих пор."),
+ TNQ("She's tired because she [has been working] all day.", "ppc", ["pp", "pac", "papc"], "Видимый результат долгого процесса (tired) → Present Perfect Continuous."),
+ TNQ("How long [have] you [been learning] English?", "ppc", ["pp", "pc", "pas"], "How long + have been + V-ing → Present Perfect Continuous."),
+ TNQ("It [has been raining] since morning.", "ppc", ["pp", "pc", "pac"], "since morning + have been V-ing → Present Perfect Continuous."),
+ TNQ("We [have been fixing] this bug for three days.", "ppc", ["pp", "fpc", "papc"], "for three days, процесс продолжается → Present Perfect Continuous."),
+ // Past Simple
+ TNQ("We [moved] to Italy in 2022.", "pas", ["pp", "pap", "pac"], "Конкретное время в прошлом (in 2022) → Past Simple: V2 / V-ed."),
+ TNQ("I [didn't go] to work yesterday.", "pas", ["pp", "pap", "pac"], "didn't + V, yesterday → Past Simple."),
+ TNQ("When [did] you [start] your first job?", "pas", ["pp", "pap", "ps"], "When + did → Past Simple (с when Present Perfect не используют)."),
+ TNQ("She [bought] a new laptop last week.", "pas", ["pp", "pap", "pac"], "last week → Past Simple."),
+ TNQ("Shakespeare [wrote] many plays.", "pas", ["pp", "ps", "pap"], "Человека уже нет, период закончен → Past Simple, а не Present Perfect."),
+ TNQ("First he [opened] the laptop, then he [checked] his messages.", "pas", ["pac", "pap", "pp"], "Цепочка действий одно за другим → Past Simple."),
+ // Past Continuous
+ TNQ("At 8 pm yesterday I [was cooking] dinner.", "pac", ["pas", "pc", "pap"], "В конкретный момент в прошлом (at 8 pm yesterday) → Past Continuous: was/were + V-ing."),
+ TNQ("While I [was working], the kids were playing.", "pac", ["pas", "pc", "papc"], "while + два параллельных процесса в прошлом → Past Continuous."),
+ TNQ("I [was walking] home when it started to rain.", "pac", ["pas", "papc", "pc"], "Длинное действие, прерванное коротким (when it started) → Past Continuous."),
+ TNQ("What [were] you [doing] at midnight?", "pac", ["pas", "pc", "pap"], "were + V-ing, момент в прошлом → Past Continuous."),
+ TNQ("The sun [was shining] and the birds were singing.", "pac", ["pas", "pc", "pp"], "Описание фона в рассказе → Past Continuous."),
+ // Past Perfect
+ TNQ("When we arrived, the train [had] already [left].", "pap", ["pas", "pp", "pac"], "had + V3 — раньше другого действия в прошлом → Past Perfect."),
+ TNQ("I [had never seen] the sea before that trip.", "pap", ["pp", "pas", "papc"], "never … before that trip (до момента в прошлом) → Past Perfect."),
+ TNQ("She was upset because she [had lost] her phone.", "pap", ["pas", "pp", "pac"], "Причина, случившаяся раньше (had lost) → Past Perfect."),
+ TNQ("By the time the boss came, we [had finished] the work.", "pap", ["pas", "fp", "pp"], "By the time + прошлое → Past Perfect."),
+ TNQ("He said he [had worked] there for five years.", "pap", ["pas", "pp", "papc"], "Косвенная речь, сдвиг назад → Past Perfect."),
+ // Past Perfect Continuous
+ TNQ("We [had been waiting] for an hour when the bus came.", "papc", ["pap", "ppc", "pac"], "had been + V-ing — процесс длился до момента в прошлом → Past Perfect Continuous."),
+ TNQ("Her eyes were red because she [had been crying].", "papc", ["pap", "pac", "ppc"], "Видимый результат процесса в прошлом → Past Perfect Continuous."),
+ TNQ("He [had been working] there for ten years before he left.", "papc", ["pap", "ppc", "pas"], "for ten years before he left → Past Perfect Continuous."),
+ TNQ("I was tired because I [had been studying] all night.", "papc", ["pap", "pac", "ppc"], "had been + V-ing, причина в прошлом → Past Perfect Continuous."),
+ // Future Simple (will)
+ TNQ("I think it [will rain] tomorrow.", "fs", ["gt", "pc", "fc"], "I think + will — мнение, прогноз → Future Simple."),
+ TNQ("The phone is ringing. — I [will answer] it!", "fs", ["gt", "pc", "ps"], "Решение в момент речи → will."),
+ TNQ("Don't worry, I [won't tell] anyone.", "fs", ["gt", "ps", "pc"], "Обещание → will / won't."),
+ TNQ("[Will] you [help] me with this box?", "fs", ["gt", "pc", "fc"], "Просьба → Will you…?"),
+ TNQ("Maybe we [will move] to a bigger flat one day.", "fs", ["gt", "pc", "fp"], "maybe, one day — неуверенное будущее → will."),
+ // be going to
+ TNQ("We [are going to buy] a car next year — we've saved the money.", "gt", ["fs", "pc", "fc"], "Заранее принятое решение, план → be going to."),
+ TNQ("Look at those clouds! It [is going to rain].", "gt", ["fs", "pc", "fc"], "Прогноз по видимым признакам (clouds) → be going to."),
+ TNQ("I [am going to learn] Spanish after English.", "gt", ["fs", "pc", "fc"], "Намерение → be going to."),
+ TNQ("Careful! You [are going to fall]!", "gt", ["fs", "pc", "ps"], "Сейчас видно, что случится → be going to."),
+ // Future Continuous
+ TNQ("This time tomorrow I [will be flying] to Rome.", "fc", ["fs", "fp", "pc"], "This time tomorrow + will be V-ing → Future Continuous: процесс в момент в будущем."),
+ TNQ("Don't call at nine — we [will be having] dinner.", "fc", ["fs", "pc", "fp"], "В момент в будущем будем в процессе → Future Continuous."),
+ TNQ("[Will] you [be using] the car tonight?", "fc", ["fs", "gt", "pc"], "Вежливый вопрос о планах → Future Continuous."),
+ TNQ("At 10 am on Monday I [will be working].", "fc", ["fs", "fp", "pc"], "will be + V-ing, конкретный момент → Future Continuous."),
+ // Future Perfect
+ TNQ("I [will have finished] the project by Friday.", "fp", ["fs", "fc", "pp"], "will have + V3 + by Friday → Future Perfect: будет завершено к сроку."),
+ TNQ("By 2030 they [will have built] a new bridge.", "fp", ["fs", "fc", "pap"], "By 2030 + will have V3 → Future Perfect."),
+ TNQ("By the time you arrive, we [will have eaten].", "fp", ["fc", "fs", "pap"], "By the time + будущее, завершённое → Future Perfect."),
+ TNQ("Next month I [will have worked] here for a year.", "fp", ["fpc", "fs", "pp"], "К моменту в будущем исполнится год → Future Perfect."),
+ // Future Perfect Continuous
+ TNQ("By June I [will have been learning] English for two years.", "fpc", ["fp", "fc", "ppc"], "will have been + V-ing + for → Future Perfect Continuous: сколько будет длиться к моменту в будущем."),
+ TNQ("At five, she [will have been working] for ten hours.", "fpc", ["fp", "fc", "ppc"], "will have been V-ing — длительность к моменту в будущем → Future Perfect Continuous."),
+ TNQ("Next year we [will have been living] here for a decade.", "fpc", ["fp", "ppc", "fc"], "will have been + V-ing + for a decade → Future Perfect Continuous."),
+ // смешанные ловушки
+ TNQ("I [have worked] here for three years.", "pp", ["ppc", "pas", "ps"], "have + V3 (без been) → Present Perfect, хоть и с for."),
+ TNQ("I [worked] there for three years, then I left.", "pas", ["pp", "pap", "ppc"], "Период закончился (then I left) → Past Simple."),
+ TNQ("I [was going to call] you, but I forgot.", "gt", ["pac", "fs", "pas"], "was going to — план в прошлом, который не случился (be going to в прошедшем)."),
+ TNQ("When I [get] home, I'll call you.", "ps", ["fs", "pc", "gt"], "После when / if / as soon as о будущем — Present Simple, не will."),
+ TNQ("If it [rains], we'll stay at home.", "ps", ["fs", "pc", "pas"], "If + Present Simple о будущем (First conditional)."),
+ TNQ("I [am always losing] my glasses!", "pc", ["ps", "pp", "ppc"], "always + Continuous — раздражение от повторяющегося действия → Present Continuous."),
+ TNQ("[Has] he [been drinking] coffee again? The cup is still warm.", "ppc", ["pp", "pc", "papc"], "has been + V-ing — следы недавнего процесса → Present Perfect Continuous."),
+ TNQ("She [has been] to Paris three times.", "pp", ["ppc", "pas", "pap"], "has been (без -ing) + three times → Present Perfect: опыт, количество раз.")
+].map(x => (x.late = 1, x));
+makeQuiz("quiz-tname", "score-tname", TENSE_NAME_QUIZ);
 
 /* ---------- неправильные глаголы ---------- */
 const VGROUPS = [
@@ -4447,7 +4546,7 @@ function readShow() {
 readList(); readShow();
 
 /* ---------- прогресс на главной ---------- */
-const QUIZ_NAMES = { "quiz-tenses": ["Тест: времена", "tenses"], "quiz-grammar": ["Тест: артикли и предлоги", "grammar"], "quiz-modals": ["Тест: модальные", "modals"], "quiz-cond": ["Тест: условные", "conditionals"], "quiz-b2": ["Тест: грамматика B2", "b2"], "quiz-phrasal": ["Тест: фразовые глаголы", "phrases"], "quiz-idioms": ["Тест: идиомы", "phrases"], "quiz-words": ["Тест: слова по темам", "phrases"] };
+const QUIZ_NAMES = { "quiz-tenses": ["Тест: времена", "tenses"], "quiz-tname": ["Тест: какое это время", "tenses"], "quiz-grammar": ["Тест: артикли и предлоги", "grammar"], "quiz-modals": ["Тест: модальные", "modals"], "quiz-cond": ["Тест: условные", "conditionals"], "quiz-b2": ["Тест: грамматика B2", "b2"], "quiz-phrasal": ["Тест: фразовые глаголы", "phrases"], "quiz-idioms": ["Тест: идиомы", "phrases"], "quiz-words": ["Тест: слова по темам", "phrases"] };
 function renderProgress() {
   const rows = [];
   Object.entries(TR).forEach(([k, l]) => rows.push([`Перевод: ${k === "DAY" ? "фразы на каждый день" : k}`, "translate", l.items.filter(it => trStats[it[0]]).length, l.items.length]));
