@@ -131,6 +131,12 @@ details summary { cursor: pointer; font-weight: 800; }
 @keyframes note{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:0;transform:translateY(-80px) rotate(20deg)}}
 #mascot .kl-mute{pointer-events:auto;position:absolute;right:-4px;top:-8px;border:0;border-radius:50%;width:28px;height:28px;background:var(--card);box-shadow:0 1px 4px #0003;font-size:14px;cursor:pointer}
 #mascot{position:fixed}
+
+#mascot.chomp svg{animation:chomp .6s ease 2}@keyframes chomp{0%,100%{transform:scale(1)}50%{transform:scale(1.08,.92)}}
+#lusha{position:fixed;right:-140px;bottom:96px;z-index:69;display:flex;align-items:flex-end;gap:4px;transition:right .7s cubic-bezier(.3,.7,.4,1);pointer-events:none}
+#lusha.in{right:96px}#lusha svg{width:84px;height:80px;pointer-events:auto;cursor:pointer;transform:scaleX(-1)}
+#lusha .bub{background:var(--card);color:var(--fg);border:2px solid #e9a55f;border-radius:14px 14px 4px 14px;padding:6px 10px;font-weight:700;font-size:.9rem;opacity:0;transition:.25s;max-width:170px}
+#lusha.talk .bub{opacity:1}
 </style>
 <script>try{document.documentElement.dataset.theme=localStorage.getItem("kids-theme")||"light"}catch(e){document.documentElement.dataset.theme="light"}</script></head>
 <body>
@@ -344,9 +350,46 @@ if (typeof document !== "undefined" && DATA) {
     done: [["Lesson complete! I'm so proud of you, ${N}!", "🏆"], ["Hooray! Let's dance!", "💃"], ["You did it! Super star!", "⭐"]] };
   let mTimer = 0, mLast = 0, mN = 0;
   const klMuted = () => store.get("kl-mute", false);
+  /* --- звуки морской свинки (Web Audio, без файлов): wheek, урчание, чавканье --- */
+  let AC = null;
+  const ac = () => { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === "suspended") AC.resume(); } catch (e) {} return AC; };
+  function wheek(t0, dur, f1, f2, vol) {
+    const a = ac(); if (!a) return; const o = a.createOscillator(), g = a.createGain(), v = a.createOscillator(), vg = a.createGain();
+    o.type = "triangle"; v.frequency.value = 28; vg.gain.value = 70; v.connect(vg); vg.connect(o.frequency);
+    o.frequency.setValueAtTime(f1, t0); o.frequency.linearRampToValueAtTime(f2, t0 + dur * .6); o.frequency.linearRampToValueAtTime(f2 * .85, t0 + dur);
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .03); g.gain.linearRampToValueAtTime(vol * .8, t0 + dur * .7); g.gain.linearRampToValueAtTime(0, t0 + dur);
+    o.connect(g); g.connect(a.destination); o.start(t0); v.start(t0); o.stop(t0 + dur + .02); v.stop(t0 + dur + .02);
+  }
+  function purr(t0, dur, vol) {
+    const a = ac(); if (!a) return; const o = a.createOscillator(), g = a.createGain(), l = a.createOscillator(), lg = a.createGain();
+    o.type = "sawtooth"; o.frequency.value = 95; l.frequency.value = 22; lg.gain.value = vol * .9; l.connect(lg); lg.connect(g.gain);
+    const f = a.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 400;
+    g.gain.setValueAtTime(vol, t0); g.gain.linearRampToValueAtTime(0, t0 + dur);
+    o.connect(f); f.connect(g); g.connect(a.destination); o.start(t0); l.start(t0); o.stop(t0 + dur); l.stop(t0 + dur);
+  }
+  function chomp(t0, n) {
+    const a = ac(); if (!a) return;
+    for (let i = 0; i < n; i++) { const b = a.createBuffer(1, a.sampleRate * .05, a.sampleRate), d = b.getChannelData(0); for (let k = 0; k < d.length; k++) d[k] = (Math.random() * 2 - 1) * (1 - k / d.length); const sN = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1800; g.gain.value = .35; sN.buffer = b; sN.connect(f); f.connect(g); g.connect(a.destination); sN.start(t0 + i * .16); }
+  }
+  function squeak(kind) {
+    if (klMuted()) return; const a = ac(); if (!a) return; const t = a.currentTime + .02;
+    if (kind === "good") { wheek(t, .16, 1400, 2300, .12); wheek(t + .2, .2, 1500, 2500, .12); }
+    else if (kind === "done" || kind === "dance") { for (let i = 0; i < 5; i++) wheek(t + i * .22, .18, 1300 + i * 60, 2400 + i * 80, .12); }
+    else if (kind === "bad") { purr(t, .45, .18); }
+    else if (kind === "pet") { purr(t, 1.1, .16); wheek(t + 1.1, .15, 1500, 2200, .08); }
+    else if (kind === "eat") { chomp(t, 6); wheek(t + 1.05, .22, 1400, 2500, .1); }
+    else if (kind === "hungry") { for (let i = 0; i < 3; i++) wheek(t + i * .28, .24, 1600, 2700, .13); }
+    else if (kind === "lusha") { wheek(t, .12, 1800, 2400, .06); }
+  }
   function klSay(text) {
-    if (klMuted() || !("speechSynthesis" in window)) return;
-    try { if (speechSynthesis.speaking) return; const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.pitch = 1.9; u.rate = 1.08; u.volume = .9; speechSynthesis.speak(u); } catch (e) {}
+    if (klMuted()) return;
+    if (TTS && !TTS_OFF) { TTS.speak(text, { language: "en", rate: 1.15, voice: "glassy" }).catch(() => {}); return; }   // на claude.ai — голос Claude (слышно и на ноутбуке)
+    if (!("speechSynthesis" in window)) return;
+    try {
+      if (speechSynthesis.speaking) return;
+      const vs = speechSynthesis.getVoices(), v = vs.find(x => /en[-_]GB/i.test(x.lang) && /female|google/i.test(x.name)) || vs.find(x => /^en/i.test(x.lang));
+      const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; if (v) u.voice = v; u.pitch = 1.9; u.rate = 1.08; u.volume = .9; speechSynthesis.speak(u);
+    } catch (e) {}
   }
   const HEAD = ["bow", "cap", "phones", "crown"];
   const outfitNow = () => { const on = store.get("outfit", null); if (on) return on; const got = OUTFIT.filter(o => stars >= o[2]).map(o => o[0]); const h = got.filter(k => HEAD.includes(k)).pop(); return got.filter(k => !HEAD.includes(k)).concat(h ? [h] : []); };
@@ -365,6 +408,7 @@ if (typeof document !== "undefined" && DATA) {
     void m.offsetWidth; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, dance ? 3200 : 2200);
     if (dance) klNotes();
     if (kind === "done") confetti();
+    squeak(kind === "good" ? "good" : kind === "bad" ? "bad" : "done");
     mN++; if (kind !== "good" || mN % 2 === 0) klSay(t);
   }
   function confetti() {
@@ -376,12 +420,58 @@ if (typeof document !== "undefined" && DATA) {
     const m = document.createElement("div"); m.id = "mascot"; m.innerHTML = `<div class="bub"></div>${KLUSHA}<button type="button" class="kl-mute" title="Голос Клуши">${klMuted() ? "🔇" : "🔊"}</button>`; document.body.appendChild(m);
     klWear();
     m.querySelector(".kl-mute").onclick = e => { const v = !klMuted(); store.set("kl-mute", v); e.currentTarget.textContent = v ? "🔇" : "🔊"; if (!v) klSay("Hi! I can talk now!"); };
-    m.querySelector("svg").addEventListener("click", () => {
-      const tips = [["Hi! I'm Klusha!", "🐹"], ["Hello means hi! Goodbye means bye!", "😉"], ["Let's learn English together!", "📚"], ["Click the speaker and listen!", "🔊"], ["Can I have a carrot, please?", "🥕"], ["Let's dance!", "💃"]];
-      const [en, emo] = tips[Math.floor(Math.random() * tips.length)];
-      m.querySelector(".bub").textContent = en + " " + emo; const d = en === "Let's dance!"; m.className = "talk " + (d ? "dance" : "hop"); if (d) klNotes();
-      clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, d ? 3200 : 2500); klSay(en);
-    });
+    m.querySelector("svg").addEventListener("click", () => { squeak("good"); klMenu(); });
+  }
+  /* --- тамагочи: еда, поглаживание, Луша в гостях (Олена 2026-11-25) --- */
+  const FOOD = [["apple", "🍎", "яблоко"], ["carrot", "🥕", "морковка"], ["cucumber", "🥒", "огурец"], ["lettuce", "🥬", "салат"], ["pepper", "🫑", "перец"], ["banana", "🍌", "банан"], ["strawberry", "🍓", "клубника"], ["grapes", "🍇", "виноград"]];
+  const today = () => new Date().toISOString().slice(0, 10);
+  const treats = () => store.get("kl-food", 3);
+  const setTreats = n => store.set("kl-food", Math.max(0, n));
+  const hungry = () => store.get("kl-fed", "") !== today();
+  function klBubble(html, ms, cls) {
+    const m = $("mascot"); if (!m) return; const bb = m.querySelector(".bub"); bb.innerHTML = html;
+    m.className = "talk " + (cls || "hop"); void m.offsetWidth; clearTimeout(mTimer); if (ms) mTimer = setTimeout(() => { m.className = ""; }, ms);
+  }
+  function hearts() { const m = $("mascot"); if (!m) return; for (let i = 0; i < 6; i++) { const e = document.createElement("span"); e.className = "note"; e.textContent = ["💖", "💕", "❤️"][i % 3]; e.style.right = 10 + i * 16 + "px"; e.style.animationDelay = i * .12 + "s"; m.appendChild(e); setTimeout(() => e.remove(), 2600); } }
+  function klMenu() {
+    const n = treats();
+    klBubble(`<div style="display:grid;gap:6px;min-width:170px"><b>${hungry() ? "I'm hungry! 🥺" : "Hi, " + esc(C.name) + "! 🐹"}</b>
+      <button type="button" class="btn" data-k="feed" style="padding:6px 10px">🍎 Покормить (${n})</button>
+      <button type="button" class="btn ghost" data-k="pet" style="padding:6px 10px">🤗 Погладить</button>
+      <button type="button" class="btn ghost" data-k="dance" style="padding:6px 10px">💃 Танцуй!</button>
+      <button type="button" class="btn ghost" data-k="friend" style="padding:6px 10px">👀 Позвать Лушу</button></div>`, 7000);
+    const bb = $("mascot").querySelector(".bub"); bb.style.pointerEvents = "auto";
+    bb.querySelectorAll("[data-k]").forEach(x => x.onclick = e => { e.stopPropagation(); bb.style.pointerEvents = ""; ({ feed: feedMenu, pet: pet, dance: () => cheer("dance", true), friend: () => lushaVisit(true) })[x.dataset.k](); });
+  }
+  function feedMenu() {
+    const n = treats();
+    if (!n) { klBubble(`<b>Угощения закончились 🙈</b><br><span class="small">Пройди урок — получишь ещё 3 🍎</span>`, 3500, "sad"); klSay("Oh no! No more food. Let's do a lesson!"); return; }
+    klBubble(`<div style="min-width:180px"><b>What do you want to give me?</b><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px">${FOOD.map(([en, emo, ru]) => `<button type="button" data-f="${en}" title="${ru}" style="font-size:1.5rem;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;padding:4px">${emo}</button>`).join("")}</div><span class="small muted">У тебя ${n} 🍎</span></div>`, 9000);
+    const bb = $("mascot").querySelector(".bub"); bb.style.pointerEvents = "auto";
+    bb.querySelectorAll("[data-f]").forEach(x => x.onclick = e => { e.stopPropagation(); bb.style.pointerEvents = ""; feed(FOOD.find(f => f[0] === x.dataset.f), x); });
+  }
+  function feed(f, el) {
+    const [en, emo, ru] = f; setTreats(treats() - 1); store.set("kl-fed", today());
+    const m = $("mascot"), r = el.getBoundingClientRect(), t = m.querySelector("svg").getBoundingClientRect();
+    const fl = document.createElement("div"); fl.textContent = emo; fl.style.cssText = `position:fixed;z-index:75;font-size:2rem;left:${r.left}px;top:${r.top}px;transition:all .7s cubic-bezier(.3,.7,.4,1)`; document.body.appendChild(fl);
+    requestAnimationFrame(() => { fl.style.left = t.left + 4 + "px"; fl.style.top = t.top + t.height * .45 + "px"; fl.style.transform = "scale(.4)"; fl.style.opacity = ".2"; });
+    setTimeout(() => { fl.remove(); m.className = "chomp"; void m.offsetWidth; squeak("eat"); const phr = [`Yummy! I love ${en === "grapes" ? "grapes" : en + "s"}!`, `Mmm, a ${en}! Thank you!`, `Delicious ${en}! Thank you, ${C.name}!`]; const p = en === "lettuce" ? "Mmm, lettuce! Thank you!" : phr[Math.floor(Math.random() * phr.length)];
+      setTimeout(() => { klBubble(`${esc(p)} ${emo}<br><span class="small muted">${en} — ${ru}</span>`, 3200); hearts(); klSay(p); }, 700); }, 720);
+  }
+  function pet() { klBubble("Wheek wheek! I love you! 💖", 2800); hearts(); squeak("pet"); setTimeout(() => klSay("I love you!"), 1300); }
+  const LUSHA = () => KLUSHA.replace('aria-label="Клуша"', 'aria-label="Луша"').replace(/#E4893C/g, "#E9A55F").replace(/#C96A28/g, "#D08A47").replace('fill="#5a3418"', 'fill="#E9A55F"').replace(/<g class="acc[\s\S]*?<\/g>/g, "");
+  function lushaVisit(called) {
+    if ($("lusha")) return;
+    const l = document.createElement("div"); l.id = "lusha"; l.innerHTML = `<div class="bub"></div>${LUSHA()}`; document.body.appendChild(l);
+    const fight = !called && Math.random() < .4, bub = l.querySelector(".bub");
+    setTimeout(() => {
+      l.classList.add("in");
+      if (fight) { bub.textContent = "My water! 💧"; l.classList.add("talk"); setTimeout(() => { klBubble("No, mine! 💧😤", 2200, "sad"); klSay("No, mine!"); }, 1300); setTimeout(() => { bub.textContent = "Okay… let's share! 🤝"; klSay("Okay, let's share!"); }, 3000); }
+      else { bub.textContent = called ? "H-hi… I'm Lusha 🙈" : "H-hello… 👋"; l.classList.add("talk"); try { if (!klMuted() && "speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(called ? "Hi. I'm Lusha." : "Hello."); u.lang = "en-US"; u.pitch = 2; u.rate = .85; u.volume = .7; speechSynthesis.speak(u); } } catch (e) {} }
+    }, 50);
+    const bye = () => { l.classList.remove("in", "talk"); setTimeout(() => l.remove(), 700); };
+    l.querySelector("svg").onclick = () => { squeak("lusha"); bub.textContent = "Eek! 🙈"; l.classList.add("talk"); setTimeout(bye, 700); };
+    setTimeout(bye, fight ? 5200 : 4200);
   }
   function wardrobe() {
     const box = $("wd"); if (!box) return;
@@ -407,7 +497,7 @@ if (typeof document !== "undefined" && DATA) {
     combo = ok ? combo + 1 : 0;
     if (ok && (combo === 3 || combo === 5 || combo === 10 || (combo > 10 && combo % 5 === 0))) {
       const c = document.createElement("div"); c.className = "combo"; c.textContent = `🔥 Combo x${combo}!`; document.body.appendChild(c); setTimeout(() => c.remove(), 1300);
-      if (combo >= 5) { confetti(); cheer("dance"); } else klSay("Combo! " + combo + " in a row!");
+      if (combo >= 5) { confetti(); cheer("dance"); if (combo === 5) setTreats(treats() + 1); } else klSay("Combo! " + combo + " in a row!");
     }
   }
   function levelUp(before, after) {
@@ -817,7 +907,9 @@ if (typeof document !== "undefined" && DATA) {
     bindQuiz($("lesson"));
     if (C.mode === "kid") {
       const m = $("mascot");
-      if (m) { setTimeout(() => { m.querySelector(".bub").textContent = done[L.n] ? `Урок ${L.n} — повторим? 😉` : `Hi, ${C.name}! Урок ${L.n} — let's go! 🐹`; m.className = "talk hop"; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, 2600); }, 400); }
+      if (m) { setTimeout(() => { m.querySelector(".bub").textContent = done[L.n] ? `Урок ${L.n} — повторим? 😉` : `Hi, ${C.name}! Урок ${L.n} — let's go! 🐹`; m.className = "talk hop"; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, 2600);
+        if (hungry() && treats() > 0) setTimeout(() => { klBubble("I'm hungry! Can I have an apple, please? 🍎<br><span class='small muted'>Нажми на меня, чтобы покормить</span>", 4500, "hop"); squeak("hungry"); setTimeout(() => klSay("I'm hungry! Can I have an apple, please?"), 900); }, 3200);
+        else if (Math.random() < .2) setTimeout(() => lushaVisit(false), 4000); }, 400); }
       if ("IntersectionObserver" in window) {
         const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .12 });
         $("lesson").querySelectorAll(":scope > h2, :scope > .stack, :scope > .card, :scope > div").forEach((el, i) => { if (i > 2) { el.classList.add("reveal"); io.observe(el); } });
@@ -834,7 +926,7 @@ if (typeof document !== "undefined" && DATA) {
     if (L.cloze) $("g-cloze").querySelectorAll(".q").forEach(qe => qe.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
       const g = $("cz-" + qe.dataset.gap); if (g) g.textContent = L.cloze.gaps[+qe.dataset.gap - 1][0];
     })));
-    $("fin").onclick = () => { const first = !done[L.n]; if (first) { done[L.n] = 1; store.set("done", done); addStar(5); cheer("done"); if (C.mode !== "kid") confetti(); sendReport(true); } if (cur < buildLessons().length) { cur++; store.set("cur", cur); } header(); show(); $("lesson").scrollIntoView({ block: "start" }); };
+    $("fin").onclick = () => { const first = !done[L.n]; if (first) { done[L.n] = 1; store.set("done", done); addStar(5); cheer("done"); if (C.mode !== "kid") confetti(); else { setTreats(treats() + 3); setTimeout(() => klBubble("Thank you! +3 🍎 for me! Yummy! 😋", 3000, "dance"), 3400); } sendReport(true); } if (cur < buildLessons().length) { cur++; store.set("cur", cur); } header(); show(); $("lesson").scrollIntoView({ block: "start" }); };
     const p = $("prev"); if (p) p.onclick = () => { cur--; store.set("cur", cur); header(); show(); $("lesson").scrollIntoView({ block: "start" }); };
   }
   /* --- тренажёр «Какое это время?» (вне уроков; времена открываются по мере прохождения) --- */
