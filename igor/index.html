@@ -194,6 +194,28 @@ function buildLessons() {
       }
     }
   }
+  /* --- доп. задания (+5–7 минут): повторение прошлых недель, «какое это время», напиши слово, ещё предложения/перевод --- */
+  const kid = C.mode === "kid", TN = DATA.tname;
+  LESSONS.forEach(L => {
+    const rnd = rng32(L.n * 104729 + 7), prev = kid ? T.slice(Math.max(0, L.w - 9), L.w - 1) : T.slice(Math.max(0, (L.w - 9) * 2), (L.w - 1) * 2), cur = L.topics;
+    const seen = new Set((L.quiz || []).map(x => x[0]));
+    const oldQ = (prev.length ? prev : cur).flatMap(t => t.quiz).filter(x => !seen.has(x[0]));
+    L.old = sshuffle(oldQ, rnd).slice(0, kid ? 4 : 5);
+    if (TN) {
+      const open = Object.keys(TN.tenses).filter(k => TN.tenses[k][1] <= L.w), nOpt = kid ? 3 : 4;
+      if (open.length >= 2) L.tn = sshuffle(TN.items.filter(it => open.includes(it[1])), rnd).slice(0, 3).map(([q, k, why]) =>
+        [q, [TN.tenses[k][0], ...sshuffle(open.filter(x => x !== k), rnd).slice(0, nOpt - 1).map(x => TN.tenses[x][0])], 0, why]);
+    }
+    const wordsNow = kid ? cur[0].words : (DATA.words[L.w - 1] ? DATA.words[L.w - 1].words : []);
+    const wordsOld = kid ? prev.flatMap(t => t.words) : DATA.words.slice(Math.max(0, L.w - 9), L.w - 1).flatMap(x => x.words);
+    const okW = w => /^[A-Za-z][A-Za-z' -]*$/.test(w[0]) && w[0].length <= 18;
+    const nNow = kid ? 2 : 3, sp = sshuffle(wordsNow.filter(okW), rnd).slice(0, nNow);
+    let spl = sp.concat(sshuffle(wordsOld.filter(okW).filter(w => !sp.includes(w)), rnd).slice(0, (kid ? 4 : 5) - sp.length));
+    if (spl.length < (kid ? 4 : 5)) spl = spl.concat(wordsNow.filter(okW).filter(w => !spl.includes(w)).slice(0, (kid ? 4 : 5) - spl.length));
+    L.spell = spl.map(w => [w[0], w[1]]);
+    if (kid) L.build2 = sshuffle((prev.length ? prev : cur).flatMap(t => t.build).filter(b => !(L.build || []).includes(b)), rnd).slice(0, 2);
+    else L.tr2 = sshuffle((prev.length ? prev : cur).flatMap(t => t.tr || []).filter(t => !(L.tr || []).includes(t)), rnd).slice(0, 2);
+  });
   return LESSONS;
 }
 if (typeof module !== "undefined") module.exports = { buildLessons, rng32, sshuffle, setData: d => { globalThis.DATA_ = d; } };
@@ -355,6 +377,22 @@ if (typeof document !== "undefined" && DATA) {
       };
     });
   }
+  function spellGame(box, items) {
+    box.innerHTML = items.map(([en, ru], i) => `<div class="card stack" data-sp="${i}"><div><b>${i + 1}. ${esc(ru)}</b> <span class="small muted">— ${en.length} букв, начинается на «${esc(en[0])}»</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="по-английски" style="flex:1;min-width:150px;font:inherit;padding:10px 12px;border:2px solid var(--line);border-radius:12px;background:var(--card);color:var(--fg)"><button type="button" class="btn" data-ck>Проверить</button><button type="button" class="btn ghost" data-hint>Подсказка</button></div><div class="res" hidden></div></div>`).join("");
+    box.querySelectorAll("[data-sp]").forEach(c => {
+      const [en] = items[+c.dataset.sp], inp = c.querySelector("input"), res = c.querySelector(".res"); let tries = 0, shown = 1;
+      const check = () => {
+        const v = inp.value.trim(); if (!v) { inp.focus(); return; }
+        const ok = norm(v) === norm(en); tries++; res.hidden = false;
+        if (ok) { res.innerHTML = `<b style="color:var(--ok)">✓ Верно! ${sayBtn(en)}</b>`; inp.style.borderColor = "var(--ok)"; if (!c.dataset.got) { c.dataset.got = 1; addStar(tries === 1 ? 2 : 1); speak(en); } }
+        else res.innerHTML = tries < 2 ? `<b style="color:var(--bad)">Почти! Попробуй ещё раз или возьми подсказку.</b>` : `<span>Правильно: <b>${esc(en)}</b> ${sayBtn(en)} — перепиши его в поле.</span>`;
+      };
+      c.querySelector("[data-ck]").onclick = check;
+      inp.onkeydown = e => { if (e.key === "Enter") check(); };
+      c.querySelector("[data-hint]").onclick = () => { shown = Math.min(en.length, shown + 1); res.hidden = false; res.innerHTML = `<span>Подсказка: <b>${esc(en.slice(0, shown))}${"_".repeat(en.length - shown).split("").join(" ")}</b> ${sayBtn(en)}</span>`; };
+    });
+  }
   function trGame(box, items) {
     box.innerHTML = items.map(([ru, hint, ans], i) => `<div class="card stack" data-t="${i}"><div><b>${i + 1}. ${esc(ru)}</b> <span class="small muted">(${esc(hint)})</span></div>
       <textarea rows="2" autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="Напиши по-английски"></textarea>
@@ -376,7 +414,8 @@ if (typeof document !== "undefined" && DATA) {
       <div><button type="button" class="btn ghost" data-say="${esc(r.text)}">🔊 Послушать текст</button></div><p class="read-text" style="margin:0">${html}</p>
       <div class="gloss">${r.g.map(([en, ru]) => `<div><b>${esc(en)}</b> — <span>${esc(ru)}</span></div>`).join("")}</div></div>
       <div class="stack">${quizHtml(r.q.map(([q, o, ok]) => [q, o, ok, ""]), pre, L.n * 97)}</div>
-      <div class="card stack" id="rd-aloud"><b>🎤 Прочитай текст вслух</b><span class="small muted">Нажми «Читать» и читай весь текст. Потом «Готово» — красные слова не распознались: послушай их 🔊 и повтори.</span>
+      <div class="card stack" id="rd-aloud"><b>🎤 Прочитай вслух «${esc(r.t)}»</b><span class="small muted">Это тот же текст, что сверху. Нажми «Читать» и читай его вслух от начала до конца. Потом нажми «Готово» — красные слова не распознались: послушай их 🔊 и повтори.</span>
+        <p class="read-text" data-rdtext style="margin:0;padding:12px 14px;border-radius:12px;background:var(--accent-soft);line-height:1.8">${esc(r.text)}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-rdmic>🎤 Читать</button><button type="button" class="btn ghost" data-rdclr>Заново</button></div>
         <div class="res" data-rdres hidden></div></div>
       <div class="card stack" id="rd-retell"><b>🗣 Перескажи своими словами</b><span class="small muted">${C.mode === "kid" ? "Расскажи по-английски 3–5 предложений: кто? где? что случилось? Можно наговорить 🎤 или напечатать." : "Спрячь текст и перескажи 5–7 предложений. Проверка покажет, какие ключевые слова ты использовал."}</span>
@@ -419,16 +458,16 @@ if (typeof document !== "undefined" && DATA) {
     const show = () => {
       if (!heard.trim()) { res.hidden = false; res.innerHTML = `<span class="muted">Ничего не услышал. Нажми «Читать» и читай громко и чётко.</span>`; return; }
       const c = cmpWords(r.text, heard), miss = [...new Set(c.words.filter((w, i) => !c.ok[i]))];
-      res.hidden = false;
+      res.hidden = false; A.querySelector("[data-rdtext]").hidden = true;
       res.innerHTML = `<b style="color:var(${c.score >= 80 ? "--ok" : "--bad"})">${c.score}% слов распознано ${c.score >= 90 ? "— отлично! 🎉" : c.score >= 75 ? "— хорошо! 👍" : "— прочитай ещё раз медленнее"}</b>
         <div style="line-height:2">${c.words.map((w, i) => `<span style="padding:1px 5px;border-radius:6px;font-weight:700;background:var(${c.ok[i] ? "--ok-soft" : "--bad-soft"});color:var(${c.ok[i] ? "--ok" : "--bad"})">${esc(w)}</span>`).join(" ")}</div>
         ${miss.length ? `<div class="small"><b>Потренируй:</b> ${miss.slice(0, 12).map(w => `<span style="white-space:nowrap">${sayBtn(w)} ${esc(w)}</span>`).join(" ")}</div>` : ""}`;
       if (c.score >= 80 && !A.dataset.got) { A.dataset.got = 1; addStar(3); }
     };
-    mic.onclick = () => { if (!LIVE) { heard = ""; res.hidden = true; } listenTo(mic, t => { heard += t; }, show, "🎤 Читать"); };
-    A.querySelector("[data-rdclr]").onclick = () => { if (LIVE) LIVE.stop(); heard = ""; res.hidden = true; };
+    mic.onclick = () => { if (!LIVE) { heard = ""; res.hidden = true; A.querySelector("[data-rdtext]").hidden = false; } listenTo(mic, t => { heard += t; }, show, "🎤 Читать"); };
+    A.querySelector("[data-rdclr]").onclick = () => { if (LIVE) LIVE.stop(); heard = ""; res.hidden = true; A.querySelector("[data-rdtext]").hidden = false; };
     const ta = R.querySelector("[data-rt]"), rres = R.querySelector("[data-rtres]"), rmic = R.querySelector("[data-rtmic]");
-    R.querySelector("[data-rdhide]").onclick = e => { const t = document.querySelector("#g-read .read-text"); if (t) { t.hidden = !t.hidden; e.target.textContent = t.hidden ? "👀 Показать текст" : "🙈 Спрятать текст"; } };
+    R.querySelector("[data-rdhide]").onclick = e => { const on = e.target.dataset.h !== "1"; e.target.dataset.h = on ? "1" : ""; document.querySelectorAll("#g-read .read-text, #g-read [data-rdres], #g-read .gloss").forEach(t => { t.style.display = on ? "none" : ""; }); e.target.textContent = on ? "👀 Показать текст" : "🙈 Спрятать текст"; };
     rmic.onclick = () => listenTo(rmic, t => { ta.value = ta.value ? ta.value + t : t.trim(); }, () => {}, "🎤 Говорить");
     R.querySelector("[data-rtchk]").onclick = async () => {
       const txt = ta.value.trim(); if (!txt) { ta.focus(); return; }
@@ -481,6 +520,12 @@ if (typeof document !== "undefined" && DATA) {
     if (L.tr && L.tr.length) s.push(H("Переведи на английский") + `<div class="stack" id="g-tr"></div>`);
     if (L.read) s.push(H(C.mode === "kid" ? "Читаем историю" : "Чтение (как на НМТ)") + `<div class="stack" id="g-read">${readHtml(L.read, L, "r")}</div>`);
     if (L.cloze) s.push(H("Use of English (как на НМТ)") + `<p class="muted small">Выбери правильное слово для каждого пропуска.</p><div class="stack" id="g-cloze">${clozeHtml(L.cloze, L)}</div>`);
+    if (L.old && L.old.length || L.tn || L.spell && L.spell.length) s.push(`<div class="card" style="text-align:center"><b>💪 Ещё задания — повторяем пройденное</b></div>`);
+    if (L.old && L.old.length) s.push(H("Повторяем прошлые недели") + `<div class="stack" id="g-old">${quizHtml(L.old, "o", L.n * 43)}</div>`);
+    if (L.tn) s.push(H("⏱ Какое это время?") + `<p class="muted small">Глагол выделен. Выбери время.</p><div class="stack" id="g-tn">${quizHtml(L.tn, "tq", L.n * 59)}</div>`);
+    if (L.spell && L.spell.length) s.push(H("Напиши слово по-английски ✍️") + `<div class="stack" id="g-spell"></div>`);
+    if (L.build2 && L.build2.length) s.push(H("Собери ещё предложения") + `<div class="stack" id="g-build2"></div>`);
+    if (L.tr2 && L.tr2.length) s.push(H("Переведи ещё") + `<div class="stack" id="g-tr2"></div>`);
     s.push(`<div class="card finish"><div class="big">${done[L.n] ? "✅" : "🏁"}</div><b>${done[L.n] ? "Этот урок уже пройден" : "Всё сделал? Молодец!"}</b>
       <button type="button" class="btn" id="fin">${done[L.n] ? "К следующему уроку →" : "Урок пройден ✓ (+5 ⭐)"}</button>${cur > 1 ? `<button type="button" class="btn ghost" id="prev">← предыдущий урок</button>` : ""}</div>`);
     $("lesson").innerHTML = s.join("");
@@ -491,6 +536,9 @@ if (typeof document !== "undefined" && DATA) {
     if (L.read) rdBind(L.read);
     if (L.build && L.build.length) buildGame($("g-build"), L.build, L.n * 19);
     if (L.tr && L.tr.length) trGame($("g-tr"), L.tr);
+    if (L.spell && L.spell.length) spellGame($("g-spell"), L.spell);
+    if (L.build2 && L.build2.length) buildGame($("g-build2"), L.build2, L.n * 23);
+    if (L.tr2 && L.tr2.length) trGame($("g-tr2"), L.tr2);
     if (L.cloze) $("g-cloze").querySelectorAll(".q").forEach(qe => qe.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
       const g = $("cz-" + qe.dataset.gap); if (g) g.textContent = L.cloze.gaps[+qe.dataset.gap - 1][0];
     })));
