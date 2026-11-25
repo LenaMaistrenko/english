@@ -133,9 +133,9 @@ details summary { cursor: pointer; font-weight: 800; }
 #mascot{position:fixed}
 
 #mascot.chomp svg{animation:chomp .6s ease 2}@keyframes chomp{0%,100%{transform:scale(1)}50%{transform:scale(1.08,.92)}}
-#lusha{position:fixed;right:-140px;bottom:96px;z-index:69;display:flex;align-items:flex-end;gap:4px;transition:right .7s cubic-bezier(.3,.7,.4,1);pointer-events:none}
-#lusha.in{right:96px}#lusha svg{width:84px;height:80px;pointer-events:auto;cursor:pointer;transform:scaleX(-1)}
-#lusha .bub{background:var(--card);color:var(--fg);border:2px solid #e9a55f;border-radius:14px 14px 4px 14px;padding:6px 10px;font-weight:700;font-size:.9rem;opacity:0;transition:.25s;max-width:170px}
+#lusha{position:fixed;left:-160px;bottom:12px;z-index:69;display:flex;flex-direction:column;align-items:flex-start;gap:2px;transition:left .7s cubic-bezier(.3,.7,.4,1);pointer-events:none}
+#lusha.in{left:8px}#lusha svg{width:100px;height:95px;pointer-events:auto;cursor:pointer;transform:scaleX(-1);filter:drop-shadow(0 3px 6px #0003)}
+#lusha .bub{background:var(--card);color:var(--fg);border:2px solid #e9a55f;border-radius:14px 14px 14px 4px;padding:6px 10px;font-weight:700;font-size:.9rem;opacity:0;transition:.25s;max-width:150px}
 #lusha.talk .bub{opacity:1}
 </style>
 <script>try{document.documentElement.dataset.theme=localStorage.getItem("kids-theme")||"light"}catch(e){document.documentElement.dataset.theme="light"}</script></head>
@@ -441,7 +441,7 @@ if (typeof document !== "undefined" && DATA) {
       <button type="button" class="btn ghost" data-k="dance" style="padding:6px 10px">💃 Танцуй!</button>
       <button type="button" class="btn ghost" data-k="friend" style="padding:6px 10px">👀 Позвать Лушу</button></div>`, 7000);
     const bb = $("mascot").querySelector(".bub"); bb.style.pointerEvents = "auto";
-    bb.querySelectorAll("[data-k]").forEach(x => x.onclick = e => { e.stopPropagation(); bb.style.pointerEvents = ""; ({ feed: feedMenu, pet: pet, dance: () => cheer("dance", true), friend: () => lushaVisit(true) })[x.dataset.k](); });
+    bb.querySelectorAll("[data-k]").forEach(x => x.onclick = e => { e.stopPropagation(); bb.style.pointerEvents = ""; $("mascot").className = ""; clearTimeout(mTimer); ({ feed: feedMenu, pet: pet, dance: () => cheer("dance", true), friend: () => lushaVisit(true) })[x.dataset.k](); });
   }
   function feedMenu() {
     const n = treats();
