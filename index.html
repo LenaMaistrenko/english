@@ -384,10 +384,6 @@ svg.pic .dot { fill: var(--accent); }
   <header class="head">
     <div class="label">Для Лены · A1 → A2 → B1 → B2</div>
     <h1>Мой английский</h1>
-    <div class="hello">
-      <p>Лена, ты уже сделала самое трудное: занимаешься каждый день. Здесь всё собрано в одно место, чтобы не думать, <b>что</b> делать, — только открыть и сделать 15 минут.</p>
-      <p class="muted">Всё работает без меня: страница открывается с телефона, а копия лежит на ноутбуке в <code>Документы → english → index.html</code> (открывается двойным щелчком даже без интернета).</p>
-    </div>
   </header>
 
   <div class="section" id="voice-box">
@@ -2877,6 +2873,99 @@ PV_QUIZ.push(...[
  ["We went to the airport to see Igor ___.", ["off", "out", "away"], 0, "see off — провожать."],
  ["When I look ___ on that year, I feel proud.", ["back", "up", "after"], 0, "look back on — вспоминать прошлое."],
  ["I'm sorry, I take ___ what I said.", ["back", "off", "away"], 0, "take back — забрать свои слова назад."]
+].map(x => (x.late = 1, x)));
+/* ---------- ещё фразовые глаголы (v40) ---------- */
+SETS.push(
+ PV("pv-it3", "IT и онлайн — 3", [
+  ["roll out","запустить, выкатить (постепенно)","We will [roll out] the new design to all users next week."],
+  ["scale up","масштабировать, наращивать","The app works fine now, but we need to [scale up] before the big campaign."],
+  ["speed up","ускорить","Lazy loading helped us [speed up] the landing page."],
+  ["zoom in / zoom out","приблизить / отдалить","[Zoom in] on the screenshot — the button is cut off."],
+  ["scroll down / scroll up","прокрутить вниз / вверх","[Scroll down] to see the pricing section."],
+  ["type in","ввести, напечатать","[Type in] your email and press Continue."],
+  ["switch on / switch off","включить / выключить","Don't forget to [switch off] dark mode before the screenshot."],
+  ["map out","спланировать, расписать по шагам","Let's [map out] the user flow before we start coding."],
+  ["narrow down","сузить (выбор, круг поиска)","We [narrowed down] the bug to one component."],
+  ["nail down","окончательно определить, зафиксировать","We need to [nail down] the requirements before Friday."],
+  ["flesh out","проработать в деталях","The idea is good, but we need to [flesh out] the details."],
+  ["mix up","перепутать","I always [mix up] margin and padding in Figma."],
+  ["break into","взломать; ворваться (в сферу)","She [broke into] IT at the age of forty."],
+  ["crop up","неожиданно возникнуть","A few small issues [cropped up] after the release."],
+  ["pan out","сложиться, получиться (о плане)","The new ad campaign didn't [pan out] as we expected."],
+  ["pencil in","предварительно записать (в календарь)","I'll [pencil in] the demo for Thursday at ten."],
+  ["run by","показать, согласовать с кем-то","Can I [run] this idea [by] you before the meeting?"],
+  ["walk through","пошагово объяснить, провести по чему-то","Could you [walk] me [through] your solution?"],
+  ["write up","оформить письменно, составить отчёт","I'll [write up] the meeting notes and send them to everyone."],
+  ["sign off (on)","утвердить; попрощаться в конце письма","The client has [signed off on] the final design."],
+  ["step up","активизироваться, взять на себя больше","When the team lead was ill, Anna [stepped up] and ran the sprint."],
+  ["start over","начать заново","The code was a mess, so I decided to [start over]."],
+  ["tear down","снести; разобрать","They [tore down] the old landing page and built a new one."],
+  ["burn out","выгореть","Work hard, but take breaks — otherwise you'll [burn out]."]
+ ]),
+ PV("pv-life3", "Жизнь и чувства — 3", [
+  ["get together","собраться, встретиться","Let's [get together] on Sunday for tea."],
+  ["come along","пойти вместе; продвигаться","We're going to the park — do you want to [come along]?"],
+  ["come round","зайти в гости; передумать, согласиться","Igor didn't like the idea at first, but he [came round]."],
+  ["drop in","заскочить ненадолго","[Drop in] any time you're in the area."],
+  ["fit in","вписаться, стать своим","At first it was hard to [fit in] at the new school."],
+  ["look around","осмотреться","We arrived early, so we had time to [look around]."],
+  ["look out","осторожно!, берегись","[Look out]! There's a car coming."],
+  ["go off","зазвонить (будильник); испортиться","My alarm [went off] at six."],
+  ["keep on","продолжать (упорно)","He [kept on] asking questions until he understood."],
+  ["pass on","передать (дальше)","Please [pass on] my thanks to your teacher."],
+  ["hand out","раздать","The teacher [handed out] the test papers."],
+  ["give out","раздавать; перестать работать","My old phone finally [gave out]."],
+  ["take apart","разобрать на части","Oleg [took apart] the old radio to see how it works."],
+  ["put back","положить на место; перенести на позже","Please [put] the scissors [back] in the drawer."],
+  ["put out","потушить","Don't forget to [put out] the candles."],
+  ["break out","вспыхнуть, начаться (о войне, пожаре)","A fire [broke out] in the old building."],
+  ["get round to","наконец-то добраться до (дела)","I finally [got round to] fixing the bookshelf."],
+  ["chill out","расслабиться, успокоиться","[Chill out]! It's only a game."],
+  ["freak out","запаниковать, психануть","Don't [freak out] — we still have time."],
+  ["cheer on","поддерживать криками, болеть за","We [cheered] Oleg [on] at his football match."],
+  ["dawn on","дойти, осенить","It suddenly [dawned on] me that I had left my keys at home."],
+  ["weigh up","взвесить (за и против)","[Weigh up] the pros and cons before you decide."],
+  ["single out","выделить (из группы)","The tutor [singled out] Oleg for his progress in maths."],
+  ["shake up","встряхнуть; перестроить","Moving abroad really [shook up] our lives."],
+  ["look ahead","смотреть в будущее","Let's stop worrying about the past and [look ahead]."]
+ ])
+);
+PV_QUIZ.push(...[
+ ["We're going to roll ___ the new feature next month.",["out","up","off"],0,"roll out — запустить, выкатить."],
+ ["Big images slow ___ the website.",["down","up","off"],0,"slow down — замедлять."],
+ ["Can I run this idea ___ you?",["by","over","through"],0,"run by — показать, согласовать."],
+ ["Could you walk me ___ your code?",["through","over","into"],0,"walk through — пошагово объяснить."],
+ ["We narrowed the problem ___ to one file.",["down","up","out"],0,"narrow down — сузить."],
+ ["I always mix ___ these two words.",["up","out","in"],0,"mix up — перепутать."],
+ ["A few problems cropped ___ after the release.",["up","out","in"],0,"crop up — неожиданно возникнуть."],
+ ["The plan didn't pan ___.",["out","up","off"],0,"pan out — получиться."],
+ ["I'll pencil ___ the call for Monday.",["in","on","up"],0,"pencil in — предварительно записать."],
+ ["Don't work 12 hours a day — you'll burn ___.",["out","down","off"],0,"burn out — выгореть."],
+ ["The code was so bad that I decided to start ___.",["over","up","off"],0,"start over — начать заново."],
+ ["The manager has signed ___ on the budget.",["off","up","out"],0,"sign off on — утвердить."],
+ ["When Anna was ill, Max stepped ___ and led the team.",["up","in","on"],0,"step up — взять на себя больше."],
+ ["Let's map ___ the project before we start.",["out","up","down"],0,"map out — спланировать по шагам."],
+ ["We need to nail ___ the date.",["down","up","in"],0,"nail down — окончательно определить."],
+ ["Let's get ___ this weekend!",["together","along","around"],0,"get together — собраться."],
+ ["Do you want to come ___ with us?",["along","over","across"],0,"come along — пойти вместе."],
+ ["It was hard for him to fit ___ at first.",["in","on","up"],0,"fit in — вписаться."],
+ ["My alarm went ___ at 6 a.m.",["off","out","on"],0,"go off — зазвонить."],
+ ["Please pass ___ the message to Igor.",["on","out","off"],0,"pass on — передать дальше."],
+ ["The teacher handed ___ the worksheets.",["out","in","over"],0,"hand out — раздать (hand in — сдать!)."],
+ ["Oleg took the clock ___ to see how it works.",["apart","off","down"],0,"take apart — разобрать."],
+ ["Put the book ___ on the shelf, please.",["back","off","up"],0,"put back — положить на место."],
+ ["Firefighters put ___ the fire quickly.",["out","off","down"],0,"put out — потушить."],
+ ["I finally got round ___ cleaning the balcony.",["to","for","with"],0,"get round to — наконец добраться до дела."],
+ ["Chill ___! Everything is fine.",["out","up","down"],0,"chill out — расслабься."],
+ ["Don't freak ___ — we can fix it.",["out","up","off"],0,"freak out — паниковать."],
+ ["We all cheered Oleg ___ at the match.",["on","up","out"],0,"cheer on — болеть за кого-то. (cheer up — подбодрить)"],
+ ["It suddenly dawned ___ me that it was Sunday.",["on","to","at"],0,"dawn on — осенить."],
+ ["Weigh ___ all the options before you decide.",["up","out","on"],0,"weigh up — взвесить."],
+ ["The tutor singled Oleg ___ for his progress.",["out","up","off"],0,"single out — выделить."],
+ ["Look ___! The floor is wet.",["out","up","after"],0,"look out — осторожно!"],
+ ["She broke ___ IT after twenty years in accounting.",["into","out","through"],0,"break into — пробиться в сферу."],
+ ["My old laptop finally gave ___.",["out","up","in"],0,"give out — перестать работать (give up — сдаться)."],
+ ["Let's stop looking back and look ___.",["ahead","forward","up"],0,"look ahead — смотреть в будущее (look forward to — ждать с нетерпением)."]
 ].map(x => (x.late = 1, x)));
 makeQuiz("quiz-phrasal", "score-phrasal", PV_QUIZ);
 /* ---------- идиомы (v10) ---------- */
