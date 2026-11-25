@@ -165,12 +165,12 @@ const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(
 const hl = s => esc(s).replace(/\[([^\]]+)\]/g, "<mark>$1</mark>");
 const plain = s => String(s).replace(/[\[\]]/g, "");
 const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
-function browserSpeak(t) { if (!canSpeak) return; try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(plain(t)); u.lang = "en-US"; u.rate = DATA.cfg.rate || .85; speechSynthesis.speak(u); } catch (e) {} }
+function browserSpeak(t, rate) { if (!canSpeak) return; try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(plain(t)); u.lang = "en-US"; u.rate = rate || DATA.cfg.rate || .85; speechSynthesis.speak(u); } catch (e) {} }
 let TTS = null, TTS_OFF = false;
-function speak(t) {
+function speak(t, rate) {
   const text = plain(t).trim(); if (!text) return;
-  if (TTS && !TTS_OFF) { TTS.speak(text.slice(0, 2000), { language: "en", rate: DATA.cfg.rate || .85, voice: DATA.cfg.voice || "airy" }).catch(e => { if (e && e.code === "not_granted") TTS_OFF = true; else if (e && (e.code === "unavailable" || e.code === "upstream_error")) browserSpeak(text); }); return; }
-  browserSpeak(text);
+  if (TTS && !TTS_OFF) { TTS.speak(text.slice(0, 2000), { language: "en", rate: rate || DATA.cfg.rate || .85, voice: DATA.cfg.voice || "airy" }).catch(e => { if (e && e.code === "not_granted") TTS_OFF = true; else if (e && (e.code === "unavailable" || e.code === "upstream_error")) browserSpeak(text, rate); }); return; }
+  browserSpeak(text, rate);
 }
 const sayBtn = t => (canSpeak || TTS) ? `<button type="button" class="say" data-say="${esc(plain(t))}" aria-label="Послушать">🔊</button>` : "";
 if (typeof document !== "undefined") document.addEventListener("click", e => { const b = e.target.closest("[data-say]"); if (b) speak(b.dataset.say); });
@@ -217,6 +217,7 @@ function buildLessons() {
           L.quiz = sshuffle(tp.quiz, rnd).slice(0, 3).concat(sshuffle(prev.length ? prev.flatMap(t => t.quiz) : tp.quiz, rnd).slice(0, 2));
           L.read = DATA.reads[w - 1] || null;
           L.build = sshuffle(tp.build, rnd).slice(0, 1);
+          L.listen = sshuffle(tp.words, rng32(n * 337 + 5)).slice(0, 3);   // пятница: все слова уже знакомые → печатать
         }
         LESSONS.push(L);
       }
@@ -273,6 +274,15 @@ function buildLessons() {
     L.spell = spl.map(w => [w[0], w[1]]);
     if (kid) L.build2 = sshuffle((prev.length ? prev : cur).flatMap(t => t.build).filter(b => !(L.build || []).includes(b)), rnd).slice(0, 2);
     else L.tr2 = sshuffle((prev.length ? prev : cur).flatMap(t => t.tr || []).filter(t => !(L.tr || []).includes(t)), rnd).slice(0, 2);
+    /* --- усложнение для Олега с 3-го урока (Олена 2026-11-25): диктант, сборка без подсказок, вопросы голосом --- */
+    if (kid && L.n >= 3) {
+      L.hard = 1;
+      const r2 = rng32(L.n * 7777 + 3), used = new Set([].concat(L.build || [], L.build2 || []).map(b => b[0]));
+      const okD = b => !used.has(b[0]) && b[0].split(/\s+/).length <= 9 && !/[()\/]/.test(b[0]);
+      let pool = (prev.length ? prev : cur).flatMap(t => t.build).filter(okD);
+      if (pool.length < 2) pool = pool.concat(cur.flatMap(t => t.build).filter(okD));
+      L.dict = sshuffle(pool, r2).slice(0, 2).map(b => b[0]);
+    }
   });
   return LESSONS;
 }
@@ -682,23 +692,49 @@ if (typeof document !== "undefined" && DATA) {
       else { b.classList.add("shake"); setTimeout(() => b.classList.remove("shake"), 350); comboHit(false); cheer("bad"); }
     });
   }
-  function listenGame(box, words, all, seed) {
-    const rnd = rng32(seed);
+  function listenGame(box, words, all, seed, newW) {
+    const rnd = rng32(seed), isNew = w => !newW || newW.some(x => x[0] === w[0]);
     box.innerHTML = words.map((w, i) => {
+      if (!isNew(w)) return `<div class="card stack" data-lt="${esc(w[0])}"><div class="q-text">${i + 1}. Послушай ${sayBtn(w[0])} и <b>напиши</b> слово <span class="small muted">(ты его уже знаешь)</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="напиши, что услышал" style="flex:1;min-width:150px;font:inherit;padding:10px 12px;border:2px solid var(--line);border-radius:12px;background:var(--card);color:var(--fg)"><button type="button" class="btn" data-ck>Проверить</button></div><div class="res" hidden></div></div>`;
       const opts = sshuffle([w].concat(sshuffle(all.filter(x => x !== w), rng32(seed + i)).slice(0, 2)), rng32(seed * 3 + i));
       return `<div class="card q lq" data-ok="${esc(w[0])}"><div class="q-text">${i + 1}. Послушай ${sayBtn(w[0])} и выбери слово</div><div class="opts">${opts.map(o => `<button type="button" data-w="${esc(o[0])}">${C.emoji && o[2] ? o[2] + " " : ""}${esc(o[0])}</button>`).join("")}</div></div>`;
     }).join("");
+    box.querySelectorAll("[data-lt]").forEach(c => {
+      const en = c.dataset.lt, inp = c.querySelector("input"), res = c.querySelector(".res"); let tries = 0;
+      const check = () => {
+        const v = inp.value.trim(); if (!v) { inp.focus(); return; }
+        const ok = norm(v) === norm(en); tries++; res.hidden = false; lastEl = c.querySelector("[data-ck]");
+        if (ok) { res.innerHTML = `<b style="color:var(--ok)">✓ Верно! ${esc(en)}</b>`; inp.style.borderColor = "var(--ok)"; if (!c.dataset.got) { c.dataset.got = 1; comboHit(true); addStar(tries === 1 ? 2 : 1); LS.ok++; } }
+        else if (tries < 2) { res.innerHTML = `<b style="color:var(--bad)">Почти! Послушай ещё раз ${sayBtn(en)}</b> <span class="small muted">Подсказка: ${en.length} букв, начинается на «${esc(en[0])}»</span>`; comboHit(false); cheer("bad"); }
+        else { res.innerHTML = `<span>Правильно: <b>${esc(en)}</b> ${sayBtn(en)} — перепиши его в поле.</span>`; if (!c.dataset.bad) { c.dataset.bad = 1; LS.bad++; } }
+      };
+      c.querySelector("[data-ck]").onclick = check; inp.onkeydown = e => { if (e.key === "Enter") check(); };
+    });
     box.querySelectorAll(".q").forEach(qe => qe.querySelectorAll("[data-w]").forEach(b => b.onclick = () => {
       qe.querySelectorAll("[data-w]").forEach(x => { x.disabled = true; if (x.dataset.w === qe.dataset.ok) x.classList.add("right"); });
       lastEl = b; comboHit(b.dataset.w === qe.dataset.ok); if (b.dataset.w !== qe.dataset.ok) { b.classList.add("wrong"); cheer("bad"); } else addStar(1);
     }));
   }
-  function buildGame(box, items, seed) {
+  let NAMES = null;
+  const TWIN = { is: "are", are: "is", am: "is", was: "were", were: "was", do: "does", does: "do", did: "does", has: "have", have: "has", a: "an", an: "a", this: "these", these: "this", that: "those", he: "she", she: "he", his: "her", her: "his", in: "on", on: "in", at: "in", my: "me", me: "my", like: "likes", likes: "like", go: "goes", goes: "go", much: "many", many: "much", some: "any", any: "some", there: "their" };
+  function buildGame(box, items, seed, hard) {
+    if (hard && !NAMES) { NAMES = new Set(); DATA.topics.forEach(t => (t.build || []).forEach(b => b[0].split(/\s+/).slice(1).forEach(w => { const x = w.replace(/[^A-Za-z']/g, ""); if (/^[A-Z]/.test(x)) NAMES.add(x); }))); NAMES.add("I"); }
     box.innerHTML = items.map(([en, ru], i) => {
       const toks = en.replace(/[.!?]$/, "").split(/\s+/), mark = en.match(/[.!?]$/) ? en.slice(-1) : "";
-      let sh = sshuffle(toks.map((t, k) => k), rng32(seed + i)); if (toks.length > 1 && sh.every((v, k) => v === k)) sh = sh.reverse();
-      return `<div class="card stack" data-b="${i}" data-ans="${esc(toks.join(" "))}" data-mark="${esc(mark)}"><div><b>${i + 1}. ${esc(ru)}</b></div><div class="build-line"></div>
-        <div class="build-pool">${sh.map(k => `<button type="button" class="chip" data-k="${k}">${esc(toks[k])}</button>`).join("")}</div>
+      let extra = [];
+      if (hard) {
+        const f = toks[0].replace(/[^A-Za-z']/g, ""); if (!NAMES.has(f) && !/^I'/.test(f)) toks[0] = toks[0][0].toLowerCase() + toks[0].slice(1);
+        const r = rng32(seed * 5 + i), low = new Set(toks.map(t => t.toLowerCase().replace(/[^a-z']/g, "")));
+        const tw = sshuffle(toks.map(t => t.toLowerCase().replace(/[^a-z']/g, "")).filter(t => TWIN[t] && !low.has(TWIN[t])), r)[0];
+        if (tw) extra.push(TWIN[tw]);
+        const others = [...new Set(DATA.topics.flatMap(t => t.build || []).filter(b => b[0] !== en).flatMap(b => b[0].split(/\s+/)).map(t => t.replace(/[^A-Za-z']/g, "")).filter(t => t.length > 2 && !NAMES.has(t) && !low.has(t.toLowerCase())).map(t => t.toLowerCase()))];
+        extra = extra.concat(sshuffle(others, r).slice(0, 2 - extra.length));
+      }
+      const all = toks.concat(extra);
+      let sh = sshuffle(all.map((t, k) => k), rng32(seed + i)); if (all.length > 1 && sh.every((v, k) => v === k)) sh = sh.reverse();
+      return `<div class="card stack" data-b="${i}" data-ans="${esc(toks.join(" "))}" data-mark="${esc(mark)}"><div><b>${i + 1}. ${esc(ru)}</b>${hard ? ` <span class="small muted">· 2 слова лишние!</span>` : ""}</div><div class="build-line"></div>
+        <div class="build-pool">${sh.map(k => `<button type="button" class="chip" data-k="${k}">${esc(all[k])}</button>`).join("")}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-chk>Проверить</button><button type="button" class="btn ghost" data-clr>Заново</button></div><div class="res" hidden></div></div>`;
     }).join("");
     box.querySelectorAll("[data-b]").forEach(c => {
@@ -710,10 +746,55 @@ if (typeof document !== "undefined" && DATA) {
       });
       c.querySelector("[data-clr]").onclick = () => { line.innerHTML = ""; c.querySelectorAll(".build-pool .chip").forEach(x => x.classList.remove("used")); res.hidden = true; };
       c.querySelector("[data-chk]").onclick = () => {
-        const got = [...line.children].map(x => x.textContent).join(" "), ok = got === c.dataset.ans;
+        const got = [...line.children].map(x => x.textContent).join(" "), ok = got.toLowerCase() === c.dataset.ans.toLowerCase();
         res.hidden = false; res.innerHTML = ok ? `<b style="color:var(--ok)">✓ Верно! ${sayBtn(c.dataset.ans)}</b>` : `<b style="color:var(--bad)">Пока не так.</b><span>Правильно: ${esc(c.dataset.ans + c.dataset.mark)} ${sayBtn(c.dataset.ans)}</span>`;
         lastEl = c.querySelector("[data-chk]"); comboHit(ok); if (ok && !c.dataset.got) { c.dataset.got = 1; addStar(2); speak(c.dataset.ans); } else if (!ok) cheer("bad");
       };
+    });
+  }
+  function dictGame(box, items) {
+    box.innerHTML = `<p class="small muted" style="margin:0">Послушай предложение и напиши его. Текста не видно 🙈 Можно слушать сколько угодно раз, 🐢 — медленно.</p>` + items.map((en, i) => `<div class="card stack" data-dc="${i}"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${i + 1}.</b><button type="button" class="btn ghost" data-play>🔊 Послушать</button><button type="button" class="btn ghost" data-slow>🐢 Медленно</button><span class="small muted">${en.split(/\s+/).length} слов</span></div>
+      <textarea rows="2" autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="Напиши, что услышал"></textarea>
+      <div><button type="button" class="btn" data-ck>Проверить</button></div><div class="res" hidden></div></div>`).join("");
+    box.querySelectorAll("[data-dc]").forEach(c => {
+      const en = items[+c.dataset.dc], ta = c.querySelector("textarea"), res = c.querySelector(".res"); let tries = 0;
+      c.querySelector("[data-play]").onclick = () => speak(en);
+      c.querySelector("[data-slow]").onclick = () => speak(en, .6);
+      c.querySelector("[data-ck]").onclick = () => {
+        const v = ta.value.trim(); if (!v) { ta.focus(); return; }
+        tries++; res.hidden = false; lastEl = c.querySelector("[data-ck]");
+        const a = wnorm(en).split(" ").filter(Boolean), b = wnorm(v).split(" ").filter(Boolean);
+        const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+        for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        const ok = new Array(a.length).fill(false); { let i = 0, j = 0; while (i < a.length && j < b.length) { if (a[i] === b[j]) { ok[i] = true; i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++; } }
+        const nOk = ok.filter(Boolean).length, all = nOk === a.length && b.length === a.length;
+        if (all) { res.innerHTML = `<b style="color:var(--ok)">✓ Без ошибок! ${esc(en)}</b>`; ta.classList.add("ok"); if (!c.dataset.got) { c.dataset.got = 1; comboHit(true); addStar(tries === 1 ? 3 : 2); LS.ok++; } return; }
+        const marks = a.map((w, i) => `<span style="padding:1px 5px;border-radius:6px;font-weight:700;background:var(${ok[i] ? "--ok-soft" : "--bad-soft"});color:var(${ok[i] ? "--ok" : "--bad"})">${ok[i] ? esc(w) : "?".repeat(Math.min(w.length, 6))}</span>`).join(" ");
+        if (tries < 2) { res.innerHTML = `<b style="color:var(--bad)">Правильно ${nOk} из ${a.length} слов${b.length > a.length ? " (есть лишние)" : ""}</b><div style="line-height:2">${marks}</div><span class="small muted">Красные — исправь. Послушай ещё раз 🐢 и нажми «Проверить».</span>`; comboHit(false); cheer("bad"); }
+        else { res.innerHTML = `<span>Правильно: <b>${esc(en)}</b> ${sayBtn(en)}</span><div class="small muted">Сравни со своим и найди ошибки 🔍</div>`; if (!c.dataset.bad) { c.dataset.bad = 1; LS.bad++; if (nOk >= a.length - 1 && !c.dataset.got) { c.dataset.got = 1; addStar(1); } } }
+        LS.said.push(`(диктант) ${v}`);
+      };
+    });
+  }
+  /* --- вопросы по тексту: ответить голосом (или напечатать) --- */
+  const STOPW = new Set("a an the is are am was were to in on at of he she it they his her its their and or do does did be".split(" "));
+  function vqBind(box, qs) {
+    box.querySelectorAll("[data-vq]").forEach(c => {
+      const [q, o, k] = qs[+c.dataset.vq], key = o[k], inp = c.querySelector("input"), res = c.querySelector(".res"), mic = c.querySelector("[data-mic]");
+      let tries = 0;
+      const check = () => {
+        const v = inp.value.trim(); if (!v) { inp.focus(); return; }
+        tries++; res.hidden = false; lastEl = c.querySelector("[data-ck]");
+        let kw = wnorm(key).split(" ").filter(w => w && !STOPW.has(w)); if (!kw.length) kw = wnorm(key).split(" ").filter(Boolean);
+        const hv = wnorm(v).split(" ").filter(Boolean), hit = kw.filter(w => hv.some(h => wEq(w, h))).length, pass = hit >= Math.ceil(kw.length * .6), full = hv.length >= 4;
+        LS.said.push(`(вопрос) ${q} → ${v}`);
+        if (pass) { res.innerHTML = `<b style="color:var(--ok)">✓ Верно!${full ? " И полным предложением — супер! 🌟" : ""}</b> <span class="small muted">Ответ: ${esc(key)}</span>`; if (!c.dataset.got) { c.dataset.got = 1; comboHit(true); addStar(full ? 3 : 2); LS.ok++; } return; }
+        if (tries < 2) { res.innerHTML = `<b style="color:var(--bad)">Не совсем. Я понял: «${esc(v)}»</b> <span class="small muted">Найди ответ в тексте и скажи ещё раз.</span>`; comboHit(false); cheer("bad"); inp.value = ""; }
+        else { res.innerHTML = `<span>Ответ: <b>${esc(key)}</b> ${sayBtn(key)}</span>`; if (!c.dataset.bad) { c.dataset.bad = 1; LS.bad++; } }
+      };
+      c.querySelector("[data-ck]").onclick = check; inp.onkeydown = e => { if (e.key === "Enter") check(); };
+      if (!(DICT || webRec())) { mic.hidden = true; return; }
+      mic.onclick = () => { if (!LIVE) { inp.value = ""; res.hidden = true; } listenTo(mic, t => { inp.value = (inp.value + " " + t).trim(); }, () => { if (inp.value.trim()) check(); }, "🎤 Ответить"); };
     });
   }
   function spellGame(box, items) {
@@ -752,7 +833,9 @@ if (typeof document !== "undefined" && DATA) {
     return `<div class="card stack">${(() => { const ph = [].concat(r.photo || []); return !ph.length ? "" : ph.length === 1 ? `<img src="photos/${esc(ph[0])}" alt="" loading="lazy" style="width:100%;max-height:60vh;object-fit:contain;border-radius:12px;background:var(--accent-soft)">` : `<div style="display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory">${ph.map(f => `<img src="photos/${esc(f)}" alt="" loading="lazy" style="flex:0 0 ${ph.length === 2 ? "49%" : "80%"};height:min(46vh,320px);object-fit:cover;border-radius:12px;scroll-snap-align:start">`).join("")}</div>`; })()}<div style="display:flex;gap:8px;align-items:center"><b>${esc(r.t)}</b><span class="small muted">${r.l}</span></div>
       <div><button type="button" class="btn ghost" data-say="${esc(r.text)}">🔊 Послушать текст</button></div><p class="read-text" style="margin:0">${html}</p>
       <div class="gloss">${r.g.map(([en, ru]) => `<div><b>${esc(en)}</b> — <span>${esc(ru)}</span></div>`).join("")}</div></div>
-      <div class="stack">${quizHtml(r.q.map(([q, o, ok]) => [q, o, ok, ""]), pre, L.n * 97)}</div>
+      <div class="stack">${quizHtml((L.hard ? r.q.slice(0, -2) : r.q).map(([q, o, ok]) => [q, o, ok, ""]), pre, L.n * 97)}</div>
+      ${L.hard ? `<div class="stack" id="rd-vq"><div class="card"><b>🗣 Ответь на вопросы голосом</b><div class="small muted">Нажми 🎤, скажи ответ по-английски, потом «Готово». Лучше полным предложением: <i>He is ten.</i> — получишь больше ⭐. Можно и напечатать.</div></div>${r.q.slice(-2).map(([q], i) => `<div class="card stack" data-vq="${i}"><div style="display:flex;gap:8px;align-items:center"><b>${esc(q)}</b>${sayBtn(q)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-mic>🎤 Ответить</button><input type="text" autocomplete="off" spellcheck="false" placeholder="или напиши ответ" style="flex:1;min-width:150px;font:inherit;padding:10px 12px;border:2px solid var(--line);border-radius:12px;background:var(--card);color:var(--fg)"><button type="button" class="btn ghost" data-ck>Проверить</button></div><div class="res" hidden></div></div>`).join("")}</div>` : ""}
       <div class="card stack" id="rd-aloud"><b>🎤 Прочитай вслух «${esc(r.t)}»</b><span class="small muted">Это тот же текст, что сверху. Нажми «Читать» и читай его вслух от начала до конца. Потом нажми «Готово» — красные слова не распознались: послушай их 🔊 и повтори.</span>
         <p class="read-text" data-rdtext style="margin:0;padding:12px 14px;border-radius:12px;background:var(--accent-soft);line-height:1.8">${esc(r.text)}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-rdmic>🎤 Читать</button><button type="button" class="btn ghost" data-rdclr>Заново</button></div>
@@ -953,7 +1036,7 @@ if (typeof document !== "undefined" && DATA) {
     if (L.words && L.words.length) s.push(H("Новые слова") + `<div class="grid-w">${L.words.map(w => C.mode === "kid"
       ? `<div class="card wcard"><div class="emo">${w[2] || ""}</div><div class="en">${esc(w[0])}</div>${sayBtn(w[0])}<div>${esc(w[1])}</div>${shortOf(w[0]) ? `<div class="short">💬 короче: ${esc(shortOf(w[0]))}</div>` : ""}<div class="ex">${hl(w[3] || "")}</div></div>`
       : `<div class="card wcard"><div class="en">${esc(w[0])}</div>${sayBtn(w[0])}<div>${esc(w[1])}</div>${shortOf(w[0]) ? `<div class="short">💬 informal: ${esc(shortOf(w[0]))}</div>` : ""}<div class="ex">${hl(w[2] || "")}</div></div>`).join("")}</div>`);
-    if (L.listen) s.push(H("Послушай и выбери") + `<div class="stack" id="g-listen"></div>`);
+    if (L.listen) s.push(H(L.hard && L.listen.some(w => !(L.words || []).includes(w)) ? "Послушай: выбери или напиши ✍️" : "Послушай и выбери") + `<div class="stack" id="g-listen"></div>`);
     if (L.match && L.match.length) s.push(H("Найди пару") + `<div id="g-match"></div>`);
     const sayItems = C.mode === "kid" ? (L.words && L.words.length ? L.words : L.match.slice(0, 3)).map(w => w[0]) : tps.slice(0, 1).flatMap(tp => tp.ex.slice(0, 2).map(e => plain(e[0])));
     if (sayItems.length) s.push(H("Скажи вслух 🎤") + `<div class="stack" id="g-say"></div>`);
@@ -964,16 +1047,17 @@ if (typeof document !== "undefined" && DATA) {
     if (L.cloze) s.push(H("Use of English (как на НМТ)") + `<p class="muted small">Выбери правильное слово для каждого пропуска.</p><div class="stack" id="g-cloze">${clozeHtml(L.cloze, L)}</div>`);
     if (L.d === 5) s.push(H("🏆 Контрольная недели") + `<div class="stack" id="g-boss"></div>`);
     if (L.photo) s.push(H("📷 Фото-задание") + `<div class="stack" id="g-photo">${photoHtml(L.photo, L)}</div>`);
-    if (L.old && L.old.length || L.tn || L.spell && L.spell.length) s.push(`<div class="card" style="text-align:center"><b>💪 Ещё задания — повторяем пройденное</b></div>`);
+    if (L.old && L.old.length || L.tn || L.spell && L.spell.length || L.dict && L.dict.length) s.push(`<div class="card" style="text-align:center"><b>💪 Ещё задания — повторяем пройденное</b></div>`);
     if (L.old && L.old.length) s.push(H("Повторяем прошлые недели") + `<div class="stack" id="g-old">${quizHtml(L.old, "o", L.n * 43)}</div>`);
     if (L.tn) s.push(H("⏱ Какое это время?") + `<p class="muted small">Глагол выделен. Выбери время.</p><div class="stack" id="g-tn">${quizHtml(L.tn, "tq", L.n * 59)}</div>`);
     if (L.spell && L.spell.length) s.push(H("Напиши слово по-английски ✍️") + `<div class="stack" id="g-spell"></div>`);
+    if (L.dict && L.dict.length) s.push(H("🎧 Диктант") + `<div class="stack" id="g-dict"></div>`);
     if (L.build2 && L.build2.length) s.push(H("Собери ещё предложения") + `<div class="stack" id="g-build2"></div>`);
     if (L.tr2 && L.tr2.length) s.push(H("Переведи ещё") + `<div class="stack" id="g-tr2"></div>`);
     s.push(`<div class="card finish"><div class="big">${done[L.n] ? "✅" : "🏁"}</div><b>${done[L.n] ? "Этот урок уже пройден" : "Всё сделал? Молодец!"}</b>
       <button type="button" class="btn" id="fin">${done[L.n] ? "К следующему уроку →" : "Урок пройден ✓ (+5 ⭐)"}</button>${cur > 1 ? `<button type="button" class="btn ghost" id="prev">← предыдущий урок</button>` : ""}</div>`);
     $("lesson").innerHTML = s.join("");
-    if (L.listen) listenGame($("g-listen"), L.listen, L.topics[0].words, L.n * 17);
+    if (L.listen) listenGame($("g-listen"), L.listen, L.topics[0].words, L.n * 17, L.hard ? (L.words || []) : null);
     if (L.match && L.match.length) matchGame($("g-match"), L.match.map(w => C.mode === "kid" ? [w[0], w[1], w[2]] : [w[0], w[1]]), L.n * 13);
     bindQuiz($("lesson"));
     if (C.mode === "kid") {
@@ -987,13 +1071,14 @@ if (typeof document !== "undefined" && DATA) {
       }
     }
     if (sayItems.length) sayGame($("g-say"), sayItems);
-    if (L.read) rdBind(L.read);
+    if (L.read) { rdBind(L.read); if (L.hard && $("rd-vq")) vqBind($("rd-vq"), L.read.q.slice(-2)); }
     if (L.photo) phBind(L.photo);
     if (L.d === 5) bossGame($("g-boss"), L);
-    if (L.build && L.build.length) buildGame($("g-build"), L.build, L.n * 19);
+    if (L.build && L.build.length) buildGame($("g-build"), L.build, L.n * 19, L.hard);
     if (L.tr && L.tr.length) trGame($("g-tr"), L.tr);
     if (L.spell && L.spell.length) spellGame($("g-spell"), L.spell);
-    if (L.build2 && L.build2.length) buildGame($("g-build2"), L.build2, L.n * 23);
+    if (L.build2 && L.build2.length) buildGame($("g-build2"), L.build2, L.n * 23, L.hard);
+    if (L.dict && L.dict.length) dictGame($("g-dict"), L.dict);
     if (L.tr2 && L.tr2.length) trGame($("g-tr2"), L.tr2);
     if (L.cloze) $("g-cloze").querySelectorAll(".q").forEach(qe => qe.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
       const g = $("cz-" + qe.dataset.gap); if (g) g.textContent = L.cloze.gaps[+qe.dataset.gap - 1][0];
