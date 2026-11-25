@@ -372,8 +372,17 @@ if (typeof document !== "undefined" && DATA) {
     const a = ac(); if (!a) return;
     for (let i = 0; i < n; i++) { const b = a.createBuffer(1, a.sampleRate * .05, a.sampleRate), d = b.getChannelData(0); for (let k = 0; k < d.length; k++) d[k] = (Math.random() * 2 - 1) * (1 - k / d.length); const sN = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1800; g.gain.value = .35; sN.buffer = b; sN.connect(f); f.connect(g); g.connect(a.destination); sN.start(t0 + i * .16); }
   }
+  /* настоящие голоса Луши и Клуши (видео Олега, 2026-11-25): wheek1, wheek3 — писк, purr — урчание */
+  const SND = {};
+  function real(name, vol, rate) {
+    try { const a = (SND[name] = SND[name] || new Audio("sounds/" + name + ".mp3")); const c = a.cloneNode(); c.volume = vol == null ? .8 : vol; c.playbackRate = rate || 1; const p = c.play(); if (p && p.catch) p.catch(() => {}); return true; } catch (e) { return false; }
+  }
+  const REAL = { good: () => real(Math.random() < .5 ? "wheek1" : "wheek3", .7), done: () => { real("wheek1", .85); setTimeout(() => real("wheek3", .85), 900); }, dance: () => real("wheek3", .8), hungry: () => real("wheek3", .9), pet: () => real("purr", .9), lusha: () => real("wheek1", .45, 1.25) };
   function squeak(kind) {
-    if (klMuted()) return; const a = ac(); if (!a) return; const t = a.currentTime + .02;
+    if (klMuted()) return;
+    if (REAL[kind] && REAL[kind]() !== false) return;
+    if (kind === "eat") { const a0 = ac(); if (a0) chomp(a0.currentTime + .02, 6); setTimeout(() => real("wheek1", .7), 1050); return; }
+    const a = ac(); if (!a) return; const t = a.currentTime + .02;
     if (kind === "good") { wheek(t, .16, 1400, 2300, .12); wheek(t + .2, .2, 1500, 2500, .12); }
     else if (kind === "done" || kind === "dance") { for (let i = 0; i < 5; i++) wheek(t + i * .22, .18, 1300 + i * 60, 2400 + i * 80, .12); }
     else if (kind === "bad") { purr(t, .45, .18); }
