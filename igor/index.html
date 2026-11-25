@@ -147,11 +147,12 @@ details summary { cursor: pointer; font-weight: 800; }
     <p class="muted" id="sub"></p>
     <div class="progress" aria-hidden="true"><i id="pbar" style="width:0%"></i></div>
     <p class="small muted" id="ptext"></p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ghost" id="report">📤 Отчёт для мамы</button><button type="button" class="btn ghost" id="th-open">📘 Теория: времена</button><button type="button" class="btn ghost" id="tn-open">⏱ Какое это время?</button><button type="button" class="btn ghost" id="st-open">📖 Истории про нас</button><button type="button" class="btn ghost" id="wd-open" hidden>🎀 Гардероб Клуши</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ghost" id="report">📤 Отчёт для мамы</button><button type="button" class="btn ghost" id="th-open">📘 Теория: времена</button><button type="button" class="btn ghost" id="tn-open">⏱ Какое это время?</button><button type="button" class="btn ghost" id="st-open">📖 Истории про нас</button><button type="button" class="btn ghost" id="wd-open" hidden>🎀 Гардероб Клуши</button><button type="button" class="btn ghost" id="pl-open">🚀 Проверка уровня</button></div>
     <div id="th" class="stack" hidden></div>
     <div id="tn" class="stack" hidden></div>
     <div id="st" class="stack" hidden></div>
     <div id="wd" class="stack" hidden></div>
+    <div id="pl" class="stack" hidden></div>
     <details class="card"><summary>Все уроки по неделям</summary><div class="weeks" id="weeks"></div></details>
   </div>
   <div id="lesson"></div>
@@ -865,6 +866,66 @@ if (typeof document !== "undefined" && DATA) {
       }
     };
   }
+
+  /* --- контрольная недели (Олег: «прошёл уровень — контроль») и проверка уровня --- */
+  const weekTopics = w => C.mode === "kid" ? [DATA.topics[w - 1]].filter(Boolean) : [DATA.topics[(w - 1) * 2], DATA.topics[(w - 1) * 2 + 1]].filter(Boolean);
+  function oneByOne(box, qs, opts) {
+    let i = 0, ok = 0, hearts = opts.hearts || 3;
+    const draw = () => {
+      if (i >= qs.length || hearts <= 0) return opts.done(ok, qs.length, hearts);
+      const [q, o, right] = qs[i], ord = sshuffle(o.map((x, j) => j), rng32(Date.now() % 1e9 + i));
+      box.innerHTML = `<div class="card stack"><div style="display:flex;justify-content:space-between;align-items:center"><b>${opts.title} · ${i + 1}/${qs.length}</b><span style="font-size:1.2rem">${"❤️".repeat(hearts)}${"🤍".repeat(Math.max(0, (opts.hearts || 3) - hearts))}</span></div>
+        <div style="height:8px;border-radius:6px;background:var(--line);overflow:hidden"><div style="height:100%;width:${Math.round(100 * i / qs.length)}%;background:var(--accent);transition:width .3s"></div></div>
+        <div class="q-text" style="font-size:1.15rem">${esc(q).replace("___", '<span class="gap">?</span>').replace(/\[([^\]]+)\]/g, "<mark>$1</mark>")}</div>
+        <div class="opts">${ord.map(j => `<button type="button" data-j="${j}">${esc(o[j])}</button>`).join("")}</div></div>`;
+      box.querySelectorAll("[data-j]").forEach(b => b.onclick = () => {
+        const good = +b.dataset.j === right; box.querySelectorAll("[data-j]").forEach(x => { x.disabled = true; if (+x.dataset.j === right) x.classList.add("right"); });
+        if (good) { ok++; lastEl = b; comboHit(true); cheer("good", true); } else { b.classList.add("wrong"); hearts--; comboHit(false); cheer("bad"); }
+        i++; setTimeout(draw, good ? 650 : 1300);
+      });
+    };
+    draw();
+  }
+  function bossGame(box, L) {
+    if (!box) return;
+    const res = store.get("boss", {}), prevBest = res[L.w];
+    const mine = weekTopics(L.w).flatMap(t => t.quiz || []), older = DATA.topics.slice(0, C.mode === "kid" ? L.w - 1 : (L.w - 1) * 2).flatMap(t => t.quiz || []);
+    const start = () => {
+      const r = rng32(Date.now() % 1e9), qs = sshuffle(mine, r).slice(0, 8).concat(sshuffle(older.length ? older : mine, r).slice(0, 2)).map(([q, o, a]) => [q, o, a]);
+      oneByOne(box, qs, { title: "🏆 Контрольная", hearts: 3, done: (ok, n, h) => {
+        const pass = ok >= Math.ceil(n * .8) && h > 0, best = Math.max(prevBest || 0, ok); res[L.w] = best; store.set("boss", res);
+        if (pass) { confetti(); cheer("done"); if (C.mode === "kid" && !(prevBest >= Math.ceil(n * .8))) { setTreats(treats() + 5); } LS.said.push(`(контрольная недели ${L.w}) ${ok} из ${n} ✅`); }
+        else { cheer("bad"); LS.said.push(`(контрольная недели ${L.w}) ${ok} из ${n} — ещё раз`); }
+        box.innerHTML = `<div class="card stack" style="text-align:center"><div style="font-size:3rem">${pass ? "🏆" : "💪"}</div><b style="font-size:1.2rem">${pass ? `Неделя ${L.w} пройдена! ${ok} из ${n}` : h <= 0 ? "Сердечки закончились 💔" : `${ok} из ${n} — нужно ${Math.ceil(n * .8)}`}</b>
+          <span class="muted">${pass ? (C.mode === "kid" ? "Клуша дарит тебе медаль, а ты ей +5 🍎!" : "Отлично, двигаемся дальше!") : "Повтори правило выше и попробуй ещё раз — вопросы будут другие."}</span>
+          <div><button type="button" class="btn ${pass ? "ghost" : ""}" data-again>${pass ? "Пройти ещё раз" : "Ещё раз 🔁"}</button></div></div>`;
+        box.querySelector("[data-again]").onclick = start;
+      } });
+    };
+    box.innerHTML = `<div class="card stack"><b>Проверь себя: 10 вопросов, 3 ❤️</b><span class="muted small">Вопросы по теме недели и прошлых недель. Нужно 8 из 10. ${prevBest != null ? `Твой лучший результат: ${prevBest}/10 ${prevBest >= 8 ? "🏆" : ""}` : ""}</span><div><button type="button" class="btn" data-go>▶ Начать контрольную</button></div></div>`;
+    box.querySelector("[data-go]").onclick = start;
+  }
+  function placement() {
+    const box = $("pl"), W = C.weeks, cps = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70].filter(w => w <= W);
+    let k = 0, passedW = 0;
+    const intro = () => { box.innerHTML = `<div class="card stack"><b>🚀 Проверка уровня</b><span class="small muted">Если уроки слишком лёгкие — пройди тест. Вопросы становятся всё сложнее. 3 вопроса на каждый уровень; если 2 из 3 правильно — идём дальше. В конце предложу, с какого урока начать.</span><div><button type="button" class="btn" data-go>▶ Начать</button> <button type="button" class="btn ghost" data-x>Закрыть</button></div></div>`; box.querySelector("[data-go]").onclick = step; box.querySelector("[data-x]").onclick = () => { box.hidden = true; }; };
+    const step = () => {
+      if (k >= cps.length) return finish();
+      const w = cps[k], qs = sshuffle(weekTopics(w).flatMap(t => t.quiz || []), rng32(Date.now() % 1e9)).slice(0, 3).map(([q, o, a]) => [q, o, a]);
+      oneByOne(box, qs, { title: `🚀 Уровень ${k + 1} (неделя ${w})`, hearts: 2, done: ok => { if (ok >= 2) { passedW = w; k++; step(); } else finish(); } });
+    };
+    const finish = () => {
+      const startW = Math.min(W, passedW ? passedW + 1 : 1), n = (startW - 1) * 5 + 1;
+      box.innerHTML = `<div class="card stack" style="text-align:center"><div style="font-size:3rem">${passedW ? "🚀" : "🙂"}</div><b style="font-size:1.15rem">${passedW ? `Ты знаешь темы до недели ${passedW}!` : "Начнём с начала — так надёжнее."}</b>
+        <span class="muted">Советую начать с урока ${n} (неделя ${startW}). Пропущенные уроки можно открыть в любой момент в «Все уроки по неделям».</span>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button type="button" class="btn" data-jump>Перейти к уроку ${n} →</button><button type="button" class="btn ghost" data-x>Остаться на уроке ${cur}</button></div></div>`;
+      if (passedW) confetti();
+      LS.said.push(`(проверка уровня) знает до недели ${passedW || 0}, совет: урок ${n}`);
+      box.querySelector("[data-jump]").onclick = () => { cur = n; store.set("cur", cur); box.hidden = true; header(); show(); $("lesson").scrollIntoView({ block: "start" }); };
+      box.querySelector("[data-x]").onclick = () => { box.hidden = true; };
+    };
+    intro();
+  }
   function clozeHtml(cz, L) {
     let txt = esc(cz.text); for (let k = 1; k <= 5; k++) txt = txt.replace(`(${k})___`, `<span class="gp" id="cz-${k}">(${k})</span>`);
     return `<div class="card stack"><b>${esc(cz.t)}</b><p class="cloze-text" style="margin:0">${txt}</p></div>
@@ -892,6 +953,7 @@ if (typeof document !== "undefined" && DATA) {
     if (L.tr && L.tr.length) s.push(H("Переведи на английский") + `<div class="stack" id="g-tr"></div>`);
     if (L.read) s.push(H(L.read.me ? "📖 История про нас" : C.mode === "kid" ? "Читаем историю" : L.d === 2 ? "Чтение" : "Чтение (как на НМТ)") + `<div class="stack" id="g-read">${readHtml(L.read, L, "r")}</div>`);
     if (L.cloze) s.push(H("Use of English (как на НМТ)") + `<p class="muted small">Выбери правильное слово для каждого пропуска.</p><div class="stack" id="g-cloze">${clozeHtml(L.cloze, L)}</div>`);
+    if (L.d === 5) s.push(H("🏆 Контрольная недели") + `<div class="stack" id="g-boss"></div>`);
     if (L.photo) s.push(H("📷 Фото-задание") + `<div class="stack" id="g-photo">${photoHtml(L.photo, L)}</div>`);
     if (L.old && L.old.length || L.tn || L.spell && L.spell.length) s.push(`<div class="card" style="text-align:center"><b>💪 Ещё задания — повторяем пройденное</b></div>`);
     if (L.old && L.old.length) s.push(H("Повторяем прошлые недели") + `<div class="stack" id="g-old">${quizHtml(L.old, "o", L.n * 43)}</div>`);
@@ -918,6 +980,7 @@ if (typeof document !== "undefined" && DATA) {
     if (sayItems.length) sayGame($("g-say"), sayItems);
     if (L.read) rdBind(L.read);
     if (L.photo) phBind(L.photo);
+    if (L.d === 5) bossGame($("g-boss"), L);
     if (L.build && L.build.length) buildGame($("g-build"), L.build, L.n * 19);
     if (L.tr && L.tr.length) trGame($("g-tr"), L.tr);
     if (L.spell && L.spell.length) spellGame($("g-spell"), L.spell);
@@ -1002,6 +1065,7 @@ if (typeof document !== "undefined" && DATA) {
     $("lesson").scrollIntoView({ block: "start" });
   }
   if (C.mode === "kid") { $("wd-open").hidden = false; $("wd-open").onclick = () => { const b = $("wd"); b.hidden = !b.hidden; if (!b.hidden) { wardrobe(); b.scrollIntoView({ block: "start" }); } }; }
+  $("pl-open").onclick = () => { const b = $("pl"); b.hidden = !b.hidden; if (!b.hidden) { placement(); b.scrollIntoView({ block: "start" }); } };
   $("st-open").onclick = () => { const b = $("st"); b.hidden = !b.hidden; if (!b.hidden) { stList(); b.scrollIntoView({ block: "start" }); } };
   if (!ST.length) $("st-open").hidden = true;
   header(); show();
