@@ -91,6 +91,24 @@ details summary { cursor: pointer; font-weight: 800; }
 .tiny-say { display: inline-flex; vertical-align: middle; }
 @media (max-width: 420px) { h1 { font-size: 1.45rem; } .grid-w { grid-template-columns: repeat(2, 1fr); } }
 [hidden] { display: none !important; }
+
+/* --- Клуша-талисман и анимации (Олег 2026-11-25: «как в Duolingo») --- */
+#mascot{position:fixed;right:12px;bottom:12px;z-index:70;display:flex;align-items:flex-end;gap:6px;pointer-events:none}
+#mascot svg{width:110px;height:94px;pointer-events:auto;cursor:pointer;filter:drop-shadow(0 3px 6px #0003);transform-origin:50% 100%}
+#mascot .bub{pointer-events:none;background:var(--card);color:var(--fg);border:2px solid var(--accent);border-radius:16px 16px 4px 16px;padding:8px 12px;font-weight:700;max-width:220px;opacity:0;transform:translateY(8px) scale(.9);transition:.25s}
+#mascot.talk .bub{opacity:1;transform:none}
+#mascot.hop svg{animation:hop .6s ease}
+#mascot.sad svg{animation:wob .5s ease}
+@keyframes hop{0%,100%{transform:translateY(0)}30%{transform:translateY(-22px) rotate(-6deg)}60%{transform:translateY(0) scaleY(.9)}80%{transform:translateY(-6px)}}
+@keyframes wob{0%,100%{transform:rotate(0)}25%{transform:rotate(-10deg)}75%{transform:rotate(10deg)}}
+.wcard{animation:pop .45s ease both}.grid-w .wcard:nth-child(2){animation-delay:.08s}.grid-w .wcard:nth-child(3){animation-delay:.16s}.grid-w .wcard:nth-child(4){animation-delay:.24s}.grid-w .wcard:nth-child(5){animation-delay:.32s}
+@keyframes pop{0%{opacity:0;transform:scale(.7) translateY(12px)}70%{transform:scale(1.05)}100%{opacity:1;transform:none}}
+.opts button.right{animation:yes .5s ease}@keyframes yes{40%{transform:scale(1.15)}}
+.opts button.wrong{animation:no .4s ease}@keyframes no{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:69;border-radius:2px;pointer-events:none;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+.short{font-size:.85rem;color:var(--accent);font-weight:700}
+@media (prefers-reduced-motion:reduce){.wcard,#mascot svg,.confetti,.opts button{animation:none!important}}
 </style>
 </head>
 <body>
@@ -281,7 +299,29 @@ function selTrInit(getSample, entries, who) {
 if (typeof document !== "undefined" && DATA) {
   const C = DATA.cfg;
   let cur = store.get("cur", 1), done = store.get("done", {}), stars = store.get("stars", 0);
-  const addStar = k => { stars += k; store.set("stars", stars); $("stars").textContent = "⭐ " + stars; };
+  let LS = { ok: 0, bad: 0, said: [] };   // результаты текущего урока — для отчёта маме
+  const KLUSHA = `<svg viewBox="0 0 120 100" aria-label="Клуша"><ellipse cx="62" cy="62" rx="48" ry="32" fill="#E4893C"/><ellipse cx="66" cy="72" rx="34" ry="18" fill="#F6C48E"/><path d="M90 40 q18 -2 22 20 q-6 14 -22 12z" fill="#E4893C"/><circle cx="30" cy="52" r="26" fill="#E4893C"/><path d="M14 58 q6 18 22 16 q8 -8 0 -16z" fill="#3a2a20"/><ellipse cx="22" cy="32" rx="9" ry="7" fill="#C96A28"/><ellipse cx="44" cy="30" rx="9" ry="7" fill="#C96A28"/><circle cx="24" cy="48" r="5" fill="#111"/><circle cx="25.5" cy="46.5" r="1.6" fill="#fff"/><circle cx="12" cy="60" r="3" fill="#111"/><path d="M12 66 q6 4 12 0" stroke="#111" stroke-width="2" fill="none"/><ellipse cx="32" cy="60" rx="6" ry="3.5" fill="#F29A9A" opacity=".7"/><ellipse cx="44" cy="92" rx="8" ry="5" fill="#C96A28"/><ellipse cx="84" cy="92" rx="8" ry="5" fill="#C96A28"/></svg>`;
+  const CHEER = { good: ["Super! 🎉", "Great job, ${N}! ⭐", "Yes! Молодец!", "Wow! Так держать!", "Excellent! 💪", "Klusha is proud of you! 🐹", "Perfect! 🔥", "You rock! 🤘"], bad: ["Почти! Try again 💪", "Не сдавайся! You can do it!", "Ничего, Клуша тоже ошибается 🐹", "Oops! Попробуй ещё!"], done: ["Урок пройден! 🎉 Клуша гордится тобой!", "Lesson complete! 🏆 Ты супер, ${N}!", "Ура! +5 ⭐ Клуша танцует! 💃"] };
+  let mTimer = 0, mLast = 0;
+  function cheer(kind) {
+    const m = $("mascot"); if (!m) return;
+    if (kind === "good" && Date.now() - mLast < 1200) return; mLast = Date.now();
+    const a = CHEER[kind], t = a[Math.floor(Math.random() * a.length)].replace("${N}", C.name);
+    m.querySelector(".bub").textContent = t; m.className = "talk " + (kind === "bad" ? "sad" : "hop");
+    void m.offsetWidth; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, kind === "done" ? 3500 : 2200);
+    if (kind === "done") confetti();
+  }
+  function confetti() {
+    const cols = ["#f06a12", "#ffd23f", "#3ec46d", "#3b82f6", "#e84393"];
+    for (let i = 0; i < 70; i++) { const c = document.createElement("i"); c.className = "confetti"; c.style.left = Math.random() * 100 + "vw"; c.style.background = cols[i % cols.length]; c.style.animationDuration = 1.6 + Math.random() * 1.6 + "s"; c.style.animationDelay = Math.random() * .4 + "s"; document.body.appendChild(c); setTimeout(() => c.remove(), 3800); }
+  }
+  if (C.mode === "kid" && !$("mascot")) {
+    const m = document.createElement("div"); m.id = "mascot"; m.innerHTML = `<div class="bub"></div>${KLUSHA}`; document.body.appendChild(m);
+    m.querySelector("svg").addEventListener("click", () => { const tips = ["Привет! Я Клуша 🐹", "Нажми 🔊 — я люблю слушать английский!", "Hello = Hi! Goodbye = Bye! 😉", "Ещё один урок — и ещё 5 звёзд! ⭐"]; m.querySelector(".bub").textContent = tips[Math.floor(Math.random() * tips.length)]; m.className = "talk hop"; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, 2500); });
+  }
+  const SHORT = {"hello": "hi / hey", "goodbye": "bye / see you", "thank you": "thanks / thx", "thanks": "thx", "please": "pls (в переписке)", "you are welcome": "no problem / np", "you're welcome": "no problem / np", "good morning": "morning!", "good night": "night! / nighty-night", "good evening": "evening!", "see you later": "see ya / later!", "how are you": "how's it going? / what's up?", "what is your name": "what's your name?", "i am": "I'm", "you are": "you're", "he is": "he's", "she is": "she's", "it is": "it's", "we are": "we're", "they are": "they're", "i do not": "I don't", "do not": "don't", "does not": "doesn't", "cannot": "can't", "can not": "can't", "will not": "won't", "i will": "I'll", "i have": "I've", "is not": "isn't", "are not": "aren't", "was not": "wasn't", "did not": "didn't", "yes": "yeah / yep", "no": "nope", "okay": "OK / k", "father": "dad", "mother": "mum / mom", "grandmother": "granny / grandma", "grandfather": "grandpa", "brother": "bro", "sister": "sis", "television": "TV", "telephone": "phone", "bicycle": "bike", "photograph": "photo", "refrigerator": "fridge", "mathematics": "maths / math", "examination": "exam", "laboratory": "lab", "advertisement": "ad", "information": "info", "favourite": "fave", "sorry": "oops / my bad", "excuse me": "'scuse me", "congratulations": "congrats", "because": "'cause / cos", "going to": "gonna", "want to": "wanna", "got to": "gotta", "kind of": "kinda", "a lot of": "lots of", "really good": "awesome", "very good": "great / cool", "delicious": "yummy", "little": "tiny", "children": "kids", "friend": "buddy / mate", "for example": "e.g. / like", "as soon as possible": "ASAP", "by the way": "BTW", "laugh out loud": "LOL", "in my opinion": "IMO"};   // Олег: «показывай, как сказать короче»
+  const shortOf = w => SHORT[String(w).toLowerCase().replace(/[!?.]/g, "").trim()];
+  const addStar = k => { stars += k; store.set("stars", stars); $("stars").textContent = "⭐ " + stars; if (k < 5) cheer("good"); };
   const KIND = { new: "Новая тема", practice: "Тренировка", review: "Пятница: повторение" };
   /* --- статистика, работа над ошибками --- */
   const QINFO = new Map();
@@ -305,12 +345,14 @@ if (typeof document !== "undefined" && DATA) {
     const L = Ls[cur - 1];
     return `${C.name} · English\n✅ Пройдено уроков: ${nd} из ${Ls.length}${L ? ` (сейчас урок ${L.n}, неделя ${L.w})` : ""}\n⭐ Звёзд: ${stars}\n🎯 Правильных ответов в тестах: ${all[1] ? Math.round(100 * all[0] / all[1]) + "% (" + all[0] + " из " + all[1] + ")" : "пока нет"}\n` +
       (weak.length ? `📌 Сложнее всего: ${weak.map(([tp, p]) => `${tp} — ${p}%`).join("; ")}\n` : "") +
-      `🔁 Вопросов на повторение: ${Object.keys(wrong).length}`;
+      `🔁 Вопросов на повторение: ${Object.keys(wrong).length}` +
+      (LS.n && (LS.ok + LS.bad) ? `\n\n📝 Урок ${LS.n}: правильно с первого раза ${LS.ok} из ${LS.ok + LS.bad}` : "") +
+      (LS.said.length ? `\n🗣 Что ${C.mode === "kid" ? "сказал" : "сказал"} по-английски:\n` + LS.said.map(x => "— " + x).join("\n") : "");
   }
-  async function sendReport() {
-    const t = report();
+  async function sendReport(auto) {
+    const t = (auto ? "🏁 Урок пройден!\n" : "") + report();
     try { if (navigator.share) { await navigator.share({ text: t }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
-    try { await navigator.clipboard.writeText(t); alert("Отчёт скопирован — вставь его в сообщение маме:\n\n" + t); } catch (e) { alert(t); }
+    if (auto) return; try { await navigator.clipboard.writeText(t); alert("Отчёт скопирован — вставь его в сообщение маме:\n\n" + t); } catch (e) { alert(t); }
   }
   /* --- скажи вслух (микрофон) --- */
   let DICT = null, SAMPLE = null;
@@ -382,7 +424,7 @@ if (typeof document !== "undefined" && DATA) {
       const ok = +qe.dataset.ok;
       qe.querySelectorAll(".opts button").forEach(x => { x.disabled = true; if (+x.dataset.j === ok) x.classList.add("right"); });
       const good = +b.dataset.j === ok;
-      if (!good) b.classList.add("wrong"); else addStar(1);
+      if (!good) { b.classList.add("wrong"); cheer("bad"); LS.bad++; } else { addStar(1); LS.ok++; }
       track(qe, good);
       const g = qe.querySelector(".gap"); if (g) g.textContent = qe.querySelector(`button[data-j="${ok}"]`).textContent;
       const e = qe.querySelector(".expl"); if (e) e.hidden = false;
@@ -431,7 +473,7 @@ if (typeof document !== "undefined" && DATA) {
       c.querySelector("[data-chk]").onclick = () => {
         const got = [...line.children].map(x => x.textContent).join(" "), ok = got === c.dataset.ans;
         res.hidden = false; res.innerHTML = ok ? `<b style="color:var(--ok)">✓ Верно! ${sayBtn(c.dataset.ans)}</b>` : `<b style="color:var(--bad)">Пока не так.</b><span>Правильно: ${esc(c.dataset.ans + c.dataset.mark)} ${sayBtn(c.dataset.ans)}</span>`;
-        if (ok && !c.dataset.got) { c.dataset.got = 1; addStar(2); speak(c.dataset.ans); }
+        if (ok && !c.dataset.got) { c.dataset.got = 1; addStar(2); speak(c.dataset.ans); } else if (!ok) cheer("bad");
       };
     });
   }
@@ -529,6 +571,7 @@ if (typeof document !== "undefined" && DATA) {
     rmic.onclick = () => listenTo(rmic, t => { ta.value = ta.value ? ta.value + t : t.trim(); }, () => {}, "🎤 Говорить");
     R.querySelector("[data-rtchk]").onclick = async () => {
       const txt = ta.value.trim(); if (!txt) { ta.focus(); return; }
+      LS.said.push("(пересказ) " + txt.slice(0, 300));
       rres.hidden = false;
       const keys = [...new Set(r.g.map(g => g[0]).concat((r.text.match(/\b[A-Z][a-z]+\b/g) || []).filter(w => !/^(The|A|An|I|It|He|She|We|They|This|That|There|But|And|So|Then|When|After|Next|In|On|At|My|Our|His|Her|Yes|No|What|Who|How|Why)$/.test(w))))].slice(0, 12);
       const have = norm(txt), got = keys.filter(k => norm(k).split(" ").every(w => have.includes(w.slice(0, Math.max(4, w.length - 2)))));
@@ -578,6 +621,7 @@ if (typeof document !== "undefined" && DATA) {
     mic.onclick = () => listenTo(mic, t => { ta.value = ta.value ? ta.value + t : t.trim(); upd(); }, upd, "🎤 Говорить");
     box.querySelector("[data-phchk]").onclick = async () => {
       const txt = ta.value.trim(); if (!txt) { ta.focus(); return; }
+      LS.said.push("(фото) " + txt.slice(0, 300));
       const have = norm(txt), keys = p.keys || [], got = keys.filter(k => norm(k).split(" ").every(w => have.includes(w.slice(0, Math.max(4, w.length - 2))))), n = wc();
       const good = n >= need && got.length >= Math.min(3, keys.length);
       res.hidden = false;
@@ -603,7 +647,7 @@ if (typeof document !== "undefined" && DATA) {
   }
   function show() {
     if (typeof LIVE !== "undefined" && LIVE) LIVE.stop();
-    const L = buildLessons()[cur - 1]; if (!L) return;
+    const L = buildLessons()[cur - 1]; if (!L) return; LS = { ok: 0, bad: 0, said: [], n: L.n };
     const tps = L.topics, s = [];
     let k = 0; const H = t => `<h2>${++k}. ${t}</h2>`;
     s.push(`<h1 style="margin-top:28px">Урок ${L.n} ${C.mode === "kid" ? tps[0].emoji || "" : ""}</h1><p class="muted">Неделя ${L.w} · ${DAYS[L.d - 1]} · ${KIND[L.kind]} · ≈ 15 минут</p>`);
@@ -612,8 +656,8 @@ if (typeof document !== "undefined" && DATA) {
     const due = dueWrong(new Set((L.quiz || []).map(x => x[0])));
     if (due.length) s.push(H("Работа над ошибками 🔁") + `<p class="muted small">Эти вопросы в прошлый раз не получились. Попробуй ещё раз!</p><div class="stack" id="g-rev">${quizHtml(due, "rv", L.n * 71)}</div>`);
     if (L.words && L.words.length) s.push(H("Новые слова") + `<div class="grid-w">${L.words.map(w => C.mode === "kid"
-      ? `<div class="card wcard"><div class="emo">${w[2] || ""}</div><div class="en">${esc(w[0])}</div>${sayBtn(w[0])}<div>${esc(w[1])}</div><div class="ex">${hl(w[3] || "")}</div></div>`
-      : `<div class="card wcard"><div class="en">${esc(w[0])}</div>${sayBtn(w[0])}<div>${esc(w[1])}</div><div class="ex">${hl(w[2] || "")}</div></div>`).join("")}</div>`);
+      ? `<div class="card wcard"><div class="emo">${w[2] || ""}</div><div class="en">${esc(w[0])}</div>${sayBtn(w[0])}<div>${esc(w[1])}</div>${shortOf(w[0]) ? `<div class="short">💬 короче: ${esc(shortOf(w[0]))}</div>` : ""}<div class="ex">${hl(w[3] || "")}</div></div>`
+      : `<div class="card wcard"><div class="en">${esc(w[0])}</div>${sayBtn(w[0])}<div>${esc(w[1])}</div>${shortOf(w[0]) ? `<div class="short">💬 informal: ${esc(shortOf(w[0]))}</div>` : ""}<div class="ex">${hl(w[2] || "")}</div></div>`).join("")}</div>`);
     if (L.listen) s.push(H("Послушай и выбери") + `<div class="stack" id="g-listen"></div>`);
     if (L.match && L.match.length) s.push(H("Найди пару") + `<div id="g-match"></div>`);
     const sayItems = C.mode === "kid" ? (L.words && L.words.length ? L.words : L.match.slice(0, 3)).map(w => w[0]) : tps.slice(0, 1).flatMap(tp => tp.ex.slice(0, 2).map(e => plain(e[0])));
@@ -647,7 +691,7 @@ if (typeof document !== "undefined" && DATA) {
     if (L.cloze) $("g-cloze").querySelectorAll(".q").forEach(qe => qe.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
       const g = $("cz-" + qe.dataset.gap); if (g) g.textContent = L.cloze.gaps[+qe.dataset.gap - 1][0];
     })));
-    $("fin").onclick = () => { if (!done[L.n]) { done[L.n] = 1; store.set("done", done); addStar(5); } if (cur < buildLessons().length) { cur++; store.set("cur", cur); } header(); show(); $("lesson").scrollIntoView({ block: "start" }); };
+    $("fin").onclick = () => { const first = !done[L.n]; if (first) { done[L.n] = 1; store.set("done", done); addStar(5); cheer("done"); if (C.mode !== "kid") confetti(); sendReport(true); } if (cur < buildLessons().length) { cur++; store.set("cur", cur); } header(); show(); $("lesson").scrollIntoView({ block: "start" }); };
     const p = $("prev"); if (p) p.onclick = () => { cur--; store.set("cur", cur); header(); show(); $("lesson").scrollIntoView({ block: "start" }); };
   }
   /* --- тренажёр «Какое это время?» (вне уроков; времена открываются по мере прохождения) --- */
