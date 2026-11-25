@@ -109,6 +109,19 @@ details summary { cursor: pointer; font-weight: 800; }
 @keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
 .short{font-size:.85rem;color:var(--accent);font-weight:700}
 @media (prefers-reduced-motion:reduce){.wcard,#mascot svg,.confetti,.opts button{animation:none!important}}
+
+.fly{position:fixed;z-index:72;font-weight:800;color:#f0a500;pointer-events:none;animation:flyup 1s ease-out forwards;text-shadow:0 1px 2px #0003}
+@keyframes flyup{0%{opacity:0;transform:translateY(0) scale(.6)}20%{opacity:1;transform:translateY(-10px) scale(1.2)}100%{opacity:0;transform:translateY(-70px) scale(1)}}
+.stars.bump{animation:bump .5s ease}@keyframes bump{40%{transform:scale(1.45) rotate(-8deg)}}
+.combo{position:fixed;left:50%;top:38%;z-index:73;transform:translate(-50%,-50%);font-size:2.2rem;font-weight:900;color:#ff6a00;text-shadow:0 2px 0 #fff,0 4px 12px #0004;pointer-events:none;animation:combo 1.2s ease forwards}
+@keyframes combo{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}30%{opacity:1;transform:translate(-50%,-50%) scale(1.25)}70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-80%) scale(.9)}}
+.levelup{position:fixed;inset:0;z-index:74;display:grid;place-items:center;background:#0006;animation:fadein .3s}
+.levelup>div{background:var(--card);color:var(--fg);border-radius:22px;padding:22px 26px;text-align:center;max-width:320px;box-shadow:0 10px 40px #0005;animation:pop .5s ease}
+.levelup .big{font-size:3rem}@keyframes fadein{from{opacity:0}}
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .5s ease,transform .5s ease}.reveal.in{opacity:1;transform:none}
+#mascot .eye{animation:blink 4s infinite}@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+#mascot.idle svg{animation:wiggle 1.2s ease}@keyframes wiggle{20%{transform:rotate(-5deg)}40%{transform:rotate(5deg)}60%{transform:rotate(-3deg)}80%{transform:rotate(2deg)}}
+@media (prefers-reduced-motion:reduce){.fly,.combo,.reveal,#mascot .eye{animation:none!important;transition:none!important;opacity:1;transform:none}}
 </style>
 </head>
 <body>
@@ -300,7 +313,7 @@ if (typeof document !== "undefined" && DATA) {
   const C = DATA.cfg;
   let cur = store.get("cur", 1), done = store.get("done", {}), stars = store.get("stars", 0);
   let LS = { ok: 0, bad: 0, said: [] };   // результаты текущего урока — для отчёта маме
-  const KLUSHA = `<svg viewBox="0 0 120 100" aria-label="Клуша"><ellipse cx="62" cy="62" rx="48" ry="32" fill="#E4893C"/><ellipse cx="66" cy="72" rx="34" ry="18" fill="#F6C48E"/><path d="M90 40 q18 -2 22 20 q-6 14 -22 12z" fill="#E4893C"/><circle cx="30" cy="52" r="26" fill="#E4893C"/><path d="M14 58 q6 18 22 16 q8 -8 0 -16z" fill="#3a2a20"/><ellipse cx="22" cy="32" rx="9" ry="7" fill="#C96A28"/><ellipse cx="44" cy="30" rx="9" ry="7" fill="#C96A28"/><circle cx="24" cy="48" r="5" fill="#111"/><circle cx="25.5" cy="46.5" r="1.6" fill="#fff"/><circle cx="12" cy="60" r="3" fill="#111"/><path d="M12 66 q6 4 12 0" stroke="#111" stroke-width="2" fill="none"/><ellipse cx="32" cy="60" rx="6" ry="3.5" fill="#F29A9A" opacity=".7"/><ellipse cx="44" cy="92" rx="8" ry="5" fill="#C96A28"/><ellipse cx="84" cy="92" rx="8" ry="5" fill="#C96A28"/></svg>`;
+  const KLUSHA = `<svg viewBox="0 0 120 100" aria-label="Клуша"><ellipse cx="62" cy="62" rx="48" ry="32" fill="#E4893C"/><ellipse cx="66" cy="72" rx="34" ry="18" fill="#F6C48E"/><path d="M90 40 q18 -2 22 20 q-6 14 -22 12z" fill="#E4893C"/><circle cx="30" cy="52" r="26" fill="#E4893C"/><path d="M14 58 q6 18 22 16 q8 -8 0 -16z" fill="#3a2a20"/><ellipse cx="22" cy="32" rx="9" ry="7" fill="#C96A28"/><ellipse cx="44" cy="30" rx="9" ry="7" fill="#C96A28"/><g class="eye" style="transform-origin:24px 48px;transform-box:view-box"><circle cx="24" cy="48" r="5" fill="#111"/><circle cx="25.5" cy="46.5" r="1.6" fill="#fff"/></g><circle cx="12" cy="60" r="3" fill="#111"/><path d="M12 66 q6 4 12 0" stroke="#111" stroke-width="2" fill="none"/><ellipse cx="32" cy="60" rx="6" ry="3.5" fill="#F29A9A" opacity=".7"/><ellipse cx="44" cy="92" rx="8" ry="5" fill="#C96A28"/><ellipse cx="84" cy="92" rx="8" ry="5" fill="#C96A28"/></svg>`;
   const CHEER = { good: ["Super! 🎉", "Great job, ${N}! ⭐", "Yes! Молодец!", "Wow! Так держать!", "Excellent! 💪", "Klusha is proud of you! 🐹", "Perfect! 🔥", "You rock! 🤘"], bad: ["Почти! Try again 💪", "Не сдавайся! You can do it!", "Ничего, Клуша тоже ошибается 🐹", "Oops! Попробуй ещё!"], done: ["Урок пройден! 🎉 Клуша гордится тобой!", "Lesson complete! 🏆 Ты супер, ${N}!", "Ура! +5 ⭐ Клуша танцует! 💃"] };
   let mTimer = 0, mLast = 0;
   function cheer(kind) {
@@ -315,13 +328,36 @@ if (typeof document !== "undefined" && DATA) {
     const cols = ["#f06a12", "#ffd23f", "#3ec46d", "#3b82f6", "#e84393"];
     for (let i = 0; i < 70; i++) { const c = document.createElement("i"); c.className = "confetti"; c.style.left = Math.random() * 100 + "vw"; c.style.background = cols[i % cols.length]; c.style.animationDuration = 1.6 + Math.random() * 1.6 + "s"; c.style.animationDelay = Math.random() * .4 + "s"; document.body.appendChild(c); setTimeout(() => c.remove(), 3800); }
   }
+  if (C.mode === "kid") setInterval(() => { const m = $("mascot"); if (m && !m.className && document.visibilityState === "visible") { m.className = "idle"; setTimeout(() => { if (m.className === "idle") m.className = ""; }, 1300); } }, 9000);
   if (C.mode === "kid" && !$("mascot")) {
     const m = document.createElement("div"); m.id = "mascot"; m.innerHTML = `<div class="bub"></div>${KLUSHA}`; document.body.appendChild(m);
     m.querySelector("svg").addEventListener("click", () => { const tips = ["Привет! Я Клуша 🐹", "Нажми 🔊 — я люблю слушать английский!", "Hello = Hi! Goodbye = Bye! 😉", "Ещё один урок — и ещё 5 звёзд! ⭐"]; m.querySelector(".bub").textContent = tips[Math.floor(Math.random() * tips.length)]; m.className = "talk hop"; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, 2500); });
   }
   const SHORT = {"hello": "hi / hey", "goodbye": "bye / see you", "thank you": "thanks / thx", "thanks": "thx", "please": "pls (в переписке)", "you are welcome": "no problem / np", "you're welcome": "no problem / np", "good morning": "morning!", "good night": "night! / nighty-night", "good evening": "evening!", "see you later": "see ya / later!", "how are you": "how's it going? / what's up?", "what is your name": "what's your name?", "i am": "I'm", "you are": "you're", "he is": "he's", "she is": "she's", "it is": "it's", "we are": "we're", "they are": "they're", "i do not": "I don't", "do not": "don't", "does not": "doesn't", "cannot": "can't", "can not": "can't", "will not": "won't", "i will": "I'll", "i have": "I've", "is not": "isn't", "are not": "aren't", "was not": "wasn't", "did not": "didn't", "yes": "yeah / yep", "no": "nope", "okay": "OK / k", "father": "dad", "mother": "mum / mom", "grandmother": "granny / grandma", "grandfather": "grandpa", "brother": "bro", "sister": "sis", "television": "TV", "telephone": "phone", "bicycle": "bike", "photograph": "photo", "refrigerator": "fridge", "mathematics": "maths / math", "examination": "exam", "laboratory": "lab", "advertisement": "ad", "information": "info", "favourite": "fave", "sorry": "oops / my bad", "excuse me": "'scuse me", "congratulations": "congrats", "because": "'cause / cos", "going to": "gonna", "want to": "wanna", "got to": "gotta", "kind of": "kinda", "a lot of": "lots of", "really good": "awesome", "very good": "great / cool", "delicious": "yummy", "little": "tiny", "children": "kids", "friend": "buddy / mate", "for example": "e.g. / like", "as soon as possible": "ASAP", "by the way": "BTW", "laugh out loud": "LOL", "in my opinion": "IMO"};   // Олег: «показывай, как сказать короче»
   const shortOf = w => SHORT[String(w).toLowerCase().replace(/[!?.]/g, "").trim()];
-  const addStar = k => { stars += k; store.set("stars", stars); $("stars").textContent = "⭐ " + stars; if (k < 5) cheer("good"); };
+  let combo = 0, lastEl = null;
+  const LEVELS = ["Новичок 🐣", "Клуша-исследователь 🔎", "Знаток слов 📚", "Мастер вопросов 🧠", "Капитан английского ⚓", "Супер-спикер 🎤", "Чемпион Клуши 🏆", "Легенда English 🌟"];
+  const levelOf = n => Math.min(LEVELS.length - 1, Math.floor(n / 50));
+  function fly(text, el) {
+    if (C.mode !== "kid") return;
+    const r = (el || $("stars")).getBoundingClientRect(), f = document.createElement("div"); f.className = "fly"; f.textContent = text;
+    f.style.left = Math.min(innerWidth - 60, r.left + r.width / 2 - 14) + "px"; f.style.top = r.top - 6 + "px"; document.body.appendChild(f); setTimeout(() => f.remove(), 1100);
+  }
+  function comboHit(ok) {
+    if (C.mode !== "kid") return;
+    combo = ok ? combo + 1 : 0;
+    if (ok && (combo === 3 || combo === 5 || combo === 10 || (combo > 10 && combo % 5 === 0))) {
+      const c = document.createElement("div"); c.className = "combo"; c.textContent = `🔥 Combo x${combo}!`; document.body.appendChild(c); setTimeout(() => c.remove(), 1300);
+      if (combo >= 5) confetti();
+    }
+  }
+  function levelUp(before, after) {
+    if (C.mode !== "kid" || levelOf(after) <= levelOf(before)) return;
+    const d = document.createElement("div"); d.className = "levelup";
+    d.innerHTML = `<div><div class="big">🏅</div><b style="font-size:1.3rem">Новый уровень!</b><p style="margin:8px 0 14px">${LEVELS[levelOf(after)]}<br><span class="small muted">${after} ⭐ — Клуша гордится тобой!</span></p><button type="button" class="btn">Ура! 🎉</button></div>`;
+    document.body.appendChild(d); confetti(); d.querySelector("button").onclick = () => d.remove(); d.onclick = e => { if (e.target === d) d.remove(); };
+  }
+  const addStar = k => { const before = stars; stars += k; store.set("stars", stars); const st = $("stars"); st.textContent = "⭐ " + stars; st.classList.remove("bump"); void st.offsetWidth; st.classList.add("bump"); fly("+" + k + " ⭐", lastEl); lastEl = null; if (k < 5) cheer("good"); levelUp(before, stars); };
   const KIND = { new: "Новая тема", practice: "Тренировка", review: "Пятница: повторение" };
   /* --- статистика, работа над ошибками --- */
   const QINFO = new Map();
@@ -424,6 +460,7 @@ if (typeof document !== "undefined" && DATA) {
       const ok = +qe.dataset.ok;
       qe.querySelectorAll(".opts button").forEach(x => { x.disabled = true; if (+x.dataset.j === ok) x.classList.add("right"); });
       const good = +b.dataset.j === ok;
+      lastEl = b; comboHit(good);
       if (!good) { b.classList.add("wrong"); cheer("bad"); LS.bad++; } else { addStar(1); LS.ok++; }
       track(qe, good);
       const g = qe.querySelector(".gap"); if (g) g.textContent = qe.querySelector(`button[data-j="${ok}"]`).textContent;
@@ -439,8 +476,8 @@ if (typeof document !== "undefined" && DATA) {
       if (b.classList.contains("done")) return;
       if (b.dataset.side === "l") { box.querySelectorAll('[data-side="l"]').forEach(x => x.classList.remove("sel")); b.classList.add("sel"); sel = b; speak(pairs[+b.dataset.i][0]); return; }
       if (!sel) return;
-      if (sel.dataset.i === b.dataset.i) { sel.classList.replace("sel", "done"); b.classList.add("done"); sel = null; addStar(1); if (--left_ === 0) box.querySelector("[data-msg]").textContent = "Отлично! Все пары найдены 🎉"; }
-      else { b.classList.add("shake"); setTimeout(() => b.classList.remove("shake"), 350); }
+      if (sel.dataset.i === b.dataset.i) { sel.classList.replace("sel", "done"); b.classList.add("done"); sel = null; lastEl = b; comboHit(true); addStar(1); if (--left_ === 0) box.querySelector("[data-msg]").textContent = "Отлично! Все пары найдены 🎉"; }
+      else { b.classList.add("shake"); setTimeout(() => b.classList.remove("shake"), 350); comboHit(false); cheer("bad"); }
     });
   }
   function listenGame(box, words, all, seed) {
@@ -451,7 +488,7 @@ if (typeof document !== "undefined" && DATA) {
     }).join("");
     box.querySelectorAll(".q").forEach(qe => qe.querySelectorAll("[data-w]").forEach(b => b.onclick = () => {
       qe.querySelectorAll("[data-w]").forEach(x => { x.disabled = true; if (x.dataset.w === qe.dataset.ok) x.classList.add("right"); });
-      if (b.dataset.w !== qe.dataset.ok) b.classList.add("wrong"); else addStar(1);
+      lastEl = b; comboHit(b.dataset.w === qe.dataset.ok); if (b.dataset.w !== qe.dataset.ok) { b.classList.add("wrong"); cheer("bad"); } else addStar(1);
     }));
   }
   function buildGame(box, items, seed) {
@@ -473,7 +510,7 @@ if (typeof document !== "undefined" && DATA) {
       c.querySelector("[data-chk]").onclick = () => {
         const got = [...line.children].map(x => x.textContent).join(" "), ok = got === c.dataset.ans;
         res.hidden = false; res.innerHTML = ok ? `<b style="color:var(--ok)">✓ Верно! ${sayBtn(c.dataset.ans)}</b>` : `<b style="color:var(--bad)">Пока не так.</b><span>Правильно: ${esc(c.dataset.ans + c.dataset.mark)} ${sayBtn(c.dataset.ans)}</span>`;
-        if (ok && !c.dataset.got) { c.dataset.got = 1; addStar(2); speak(c.dataset.ans); } else if (!ok) cheer("bad");
+        lastEl = c.querySelector("[data-chk]"); comboHit(ok); if (ok && !c.dataset.got) { c.dataset.got = 1; addStar(2); speak(c.dataset.ans); } else if (!ok) cheer("bad");
       };
     });
   }
@@ -680,6 +717,14 @@ if (typeof document !== "undefined" && DATA) {
     if (L.listen) listenGame($("g-listen"), L.listen, L.topics[0].words, L.n * 17);
     if (L.match && L.match.length) matchGame($("g-match"), L.match.map(w => C.mode === "kid" ? [w[0], w[1], w[2]] : [w[0], w[1]]), L.n * 13);
     bindQuiz($("lesson"));
+    if (C.mode === "kid") {
+      const m = $("mascot");
+      if (m) { setTimeout(() => { m.querySelector(".bub").textContent = done[L.n] ? `Урок ${L.n} — повторим? 😉` : `Hi, ${C.name}! Урок ${L.n} — let's go! 🐹`; m.className = "talk hop"; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, 2600); }, 400); }
+      if ("IntersectionObserver" in window) {
+        const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .12 });
+        $("lesson").querySelectorAll(":scope > h2, :scope > .stack, :scope > .card, :scope > div").forEach((el, i) => { if (i > 2) { el.classList.add("reveal"); io.observe(el); } });
+      }
+    }
     if (sayItems.length) sayGame($("g-say"), sayItems);
     if (L.read) rdBind(L.read);
     if (L.photo) phBind(L.photo);
