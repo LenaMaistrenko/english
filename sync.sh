@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 cp ~/Documents/english/kids/oleg/index.html oleg/index.html
 cp ~/Documents/english/kids/igor/index.html igor/index.html
 # фото для фото-заданий (Олена разрешила 2026-11-25; без EXIF, уменьшены)
-for k in oleg igor; do mkdir -p $k/photos; rsync -a --delete ~/Documents/english/kids/photos/ $k/photos/; done
+for k in oleg igor .; do mkdir -p $k/photos; rsync -a --delete ~/Documents/english/kids/photos/ $k/photos/; done
 git add -A
 git commit -q -m "${1:-Update apps}" || { echo "нет изменений"; exit 0; }
 git push -q && echo "отправлено"
