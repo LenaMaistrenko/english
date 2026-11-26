@@ -337,7 +337,7 @@ function selTrInit(getSample, entries, who) {
 }
 /* ---------- интерфейс ---------- */
 if (typeof document !== "undefined" && DATA) {
-  const C = DATA.cfg;
+  const C = DATA.cfg, MASCOT = C.mode === "kid" || !!C.mascot;   // Клуша: Олег + Игорь (Олена 2026-11-26)
   let cur = store.get("cur", 1), done = store.get("done", {}), stars = store.get("stars", 0);
   let LS = { ok: 0, bad: 0, said: [] };   // результаты текущего урока — для отчёта маме
   const KLUSHA = `<svg viewBox="0 -14 120 114" aria-label="Клуша">
@@ -435,8 +435,8 @@ if (typeof document !== "undefined" && DATA) {
     const cols = ["#f06a12", "#ffd23f", "#3ec46d", "#3b82f6", "#e84393"];
     for (let i = 0; i < 70; i++) { const c = document.createElement("i"); c.className = "confetti"; c.style.left = Math.random() * 100 + "vw"; c.style.background = cols[i % cols.length]; c.style.animationDuration = 1.6 + Math.random() * 1.6 + "s"; c.style.animationDelay = Math.random() * .4 + "s"; document.body.appendChild(c); setTimeout(() => c.remove(), 3800); }
   }
-  if (C.mode === "kid") setInterval(() => { const m = $("mascot"); if (m && !m.className && document.visibilityState === "visible") { m.className = "idle"; setTimeout(() => { if (m.className === "idle") m.className = ""; }, 1300); } }, 9000);
-  if (C.mode === "kid" && !$("mascot")) {
+  if (MASCOT) setInterval(() => { const m = $("mascot"); if (m && !m.className && document.visibilityState === "visible") { m.className = "idle"; setTimeout(() => { if (m.className === "idle") m.className = ""; }, 1300); } }, 9000);
+  if (MASCOT && !$("mascot")) {
     const m = document.createElement("div"); m.id = "mascot"; m.innerHTML = `<div class="bub"></div>${KLUSHA}<button type="button" class="kl-mute" title="Голос Клуши">${klMuted() ? "🔇" : "🔊"}</button>`; document.body.appendChild(m);
     klWear();
     m.querySelector(".kl-mute").onclick = e => { const v = !klMuted(); store.set("kl-mute", v); e.currentTarget.textContent = v ? "🔇" : "🔊"; if (!v) klSay("Hi! I can talk now!"); };
@@ -508,12 +508,12 @@ if (typeof document !== "undefined" && DATA) {
   const LEVELS = ["Новичок 🐣", "Клуша-исследователь 🔎", "Знаток слов 📚", "Мастер вопросов 🧠", "Капитан английского ⚓", "Супер-спикер 🎤", "Чемпион Клуши 🏆", "Легенда English 🌟"];
   const levelOf = n => Math.min(LEVELS.length - 1, Math.floor(n / 50));
   function fly(text, el) {
-    if (C.mode !== "kid") return;
+    if (!MASCOT) return;
     const r = (el || $("stars")).getBoundingClientRect(), f = document.createElement("div"); f.className = "fly"; f.textContent = text;
     f.style.left = Math.min(innerWidth - 60, r.left + r.width / 2 - 14) + "px"; f.style.top = r.top - 6 + "px"; document.body.appendChild(f); setTimeout(() => f.remove(), 1100);
   }
   function comboHit(ok) {
-    if (C.mode !== "kid") return;
+    if (!MASCOT) return;
     combo = ok ? combo + 1 : 0;
     if (ok && (combo === 3 || combo === 5 || combo === 10 || (combo > 10 && combo % 5 === 0))) {
       const c = document.createElement("div"); c.className = "combo"; c.textContent = `🔥 Combo x${combo}!`; document.body.appendChild(c); setTimeout(() => c.remove(), 1300);
@@ -521,7 +521,7 @@ if (typeof document !== "undefined" && DATA) {
     }
   }
   function levelUp(before, after) {
-    if (C.mode !== "kid" || levelOf(after) <= levelOf(before)) return;
+    if (!MASCOT || levelOf(after) <= levelOf(before)) return;
     const d = document.createElement("div"); d.className = "levelup";
     d.innerHTML = `<div><div class="big">🏅</div><b style="font-size:1.3rem">Новый уровень!</b><p style="margin:8px 0 14px">${LEVELS[levelOf(after)]}<br><span class="small muted">${after} ⭐ — Клуша гордится тобой!</span></p><button type="button" class="btn">Ура! 🎉</button></div>`;
     const item = OUTFIT.find(o => before < o[2] && after >= o[2]);
@@ -986,10 +986,10 @@ if (typeof document !== "undefined" && DATA) {
       const r = rng32(Date.now() % 1e9), qs = sshuffle(mine, r).slice(0, 8).concat(sshuffle(older.length ? older : mine, r).slice(0, 2)).map(([q, o, a]) => [q, o, a]);
       oneByOne(box, qs, { title: "🏆 Контрольная", hearts: 3, done: (ok, n, h) => {
         const pass = ok >= Math.ceil(n * .8) && h > 0, best = Math.max(prevBest || 0, ok); res[L.w] = best; store.set("boss", res);
-        if (pass) { confetti(); cheer("done"); if (C.mode === "kid" && !(prevBest >= Math.ceil(n * .8))) { setTreats(treats() + 5); } LS.said.push(`(контрольная недели ${L.w}) ${ok} из ${n} ✅`); }
+        if (pass) { confetti(); cheer("done"); if (MASCOT && !(prevBest >= Math.ceil(n * .8))) { setTreats(treats() + 5); } LS.said.push(`(контрольная недели ${L.w}) ${ok} из ${n} ✅`); }
         else { cheer("bad"); LS.said.push(`(контрольная недели ${L.w}) ${ok} из ${n} — ещё раз`); }
         box.innerHTML = `<div class="card stack" style="text-align:center"><div style="font-size:3rem">${pass ? "🏆" : "💪"}</div><b style="font-size:1.2rem">${pass ? `Неделя ${L.w} пройдена! ${ok} из ${n}` : h <= 0 ? "Сердечки закончились 💔" : `${ok} из ${n} — нужно ${Math.ceil(n * .8)}`}</b>
-          <span class="muted">${pass ? (C.mode === "kid" ? "Клуша дарит тебе медаль, а ты ей +5 🍎!" : "Отлично, двигаемся дальше!") : "Повтори правило выше и попробуй ещё раз — вопросы будут другие."}</span>
+          <span class="muted">${pass ? (MASCOT ? "Клуша дарит тебе медаль, а ты ей +5 🍎!" : "Отлично, двигаемся дальше!") : "Повтори правило выше и попробуй ещё раз — вопросы будут другие."}</span>
           <div><button type="button" class="btn ${pass ? "ghost" : ""}" data-again>${pass ? "Пройти ещё раз" : "Ещё раз 🔁"}</button></div></div>`;
         box.querySelector("[data-again]").onclick = start;
       } });
@@ -1060,7 +1060,7 @@ if (typeof document !== "undefined" && DATA) {
     if (L.listen) listenGame($("g-listen"), L.listen, L.topics[0].words, L.n * 17, L.hard ? (L.words || []) : null);
     if (L.match && L.match.length) matchGame($("g-match"), L.match.map(w => C.mode === "kid" ? [w[0], w[1], w[2]] : [w[0], w[1]]), L.n * 13);
     bindQuiz($("lesson"));
-    if (C.mode === "kid") {
+    if (MASCOT) {
       const m = $("mascot");
       if (m) { setTimeout(() => { m.querySelector(".bub").textContent = done[L.n] ? `Урок ${L.n} — повторим? 😉` : `Hi, ${C.name}! Урок ${L.n} — let's go! 🐹`; m.className = "talk hop"; clearTimeout(mTimer); mTimer = setTimeout(() => { m.className = ""; }, 2600);
         if (hungry() && treats() > 0) setTimeout(() => { klBubble("I'm hungry! Can I have an apple, please? 🍎<br><span class='small muted'>Нажми на меня, чтобы покормить</span>", 4500, "hop"); squeak("hungry"); setTimeout(() => klSay("I'm hungry! Can I have an apple, please?"), 900); }, 3200);
@@ -1083,7 +1083,7 @@ if (typeof document !== "undefined" && DATA) {
     if (L.cloze) $("g-cloze").querySelectorAll(".q").forEach(qe => qe.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
       const g = $("cz-" + qe.dataset.gap); if (g) g.textContent = L.cloze.gaps[+qe.dataset.gap - 1][0];
     })));
-    $("fin").onclick = () => { const first = !done[L.n]; if (first) { done[L.n] = 1; store.set("done", done); addStar(5); cheer("done"); if (C.mode !== "kid") confetti(); else { setTreats(treats() + 3); setTimeout(() => klBubble("Thank you! +3 🍎 for me! Yummy! 😋", 3000, "dance"), 3400); } sendReport(true); } if (cur < buildLessons().length) { cur++; store.set("cur", cur); } header(); show(); $("lesson").scrollIntoView({ block: "start" }); };
+    $("fin").onclick = () => { const first = !done[L.n]; if (first) { done[L.n] = 1; store.set("done", done); addStar(5); cheer("done"); if (!MASCOT) confetti(); else { setTreats(treats() + 3); setTimeout(() => klBubble("Thank you! +3 🍎 for me! Yummy! 😋", 3000, "dance"), 3400); } sendReport(true); } if (cur < buildLessons().length) { cur++; store.set("cur", cur); } header(); show(); $("lesson").scrollIntoView({ block: "start" }); };
     const p = $("prev"); if (p) p.onclick = () => { cur--; store.set("cur", cur); header(); show(); $("lesson").scrollIntoView({ block: "start" }); };
   }
   /* --- тренажёр «Какое это время?» (вне уроков; времена открываются по мере прохождения) --- */
@@ -1158,7 +1158,7 @@ if (typeof document !== "undefined" && DATA) {
     };
     $("lesson").scrollIntoView({ block: "start" });
   }
-  if (C.mode === "kid") { $("wd-open").hidden = false; $("wd-open").onclick = () => { const b = $("wd"); b.hidden = !b.hidden; if (!b.hidden) { wardrobe(); b.scrollIntoView({ block: "start" }); } }; }
+  if (MASCOT) { $("wd-open").hidden = false; $("wd-open").onclick = () => { const b = $("wd"); b.hidden = !b.hidden; if (!b.hidden) { wardrobe(); b.scrollIntoView({ block: "start" }); } }; }
   $("pl-open").onclick = () => { const b = $("pl"); b.hidden = !b.hidden; if (!b.hidden) { placement(); b.scrollIntoView({ block: "start" }); } };
   $("st-open").onclick = () => { const b = $("st"); b.hidden = !b.hidden; if (!b.hidden) { stList(); b.scrollIntoView({ block: "start" }); } };
   if (!ST.length) $("st-open").hidden = true;
